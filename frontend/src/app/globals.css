@@ -76,6 +76,7 @@
   --color-success-soft: #e9f8ef;
   --color-warning: #f5b83d; /* fills only; put ink-950 text on it */
   --color-warning-soft: #fff6e5;
+  --color-star: #b7791f; /* rating stars; 3.6:1 on white, decorative next to a text rating */
 
   /* ---------- Shape ---------- */
   --radius-sm: 0.375rem; /* 6px: buttons, inputs, photos, chips */

@@ -118,7 +118,9 @@ test("dispute line and deadline", () => {
     reason: "incomplete" as const,
     details: null,
     status: "open" as const,
+    opened_by: "buyer" as const,
     respond_by: "2026-10-15T00:00:00Z",
+    decide_by: null,
     seller_note: null,
     admin_note: null,
     outcome: null,
@@ -131,5 +133,32 @@ test("dispute line and deadline", () => {
   expect(disputeLine({ ...dispute, status: "escalated" }, "buying")).toMatch(/moderator/);
   expect(disputeLine({ ...dispute, status: "resolved", outcome: "refunded" }, "buying")).toBe(
     "Resolved: the buyer was refunded in full.",
+  );
+});
+
+test("seller's report: buyer took the item without the code", () => {
+  const report = {
+    id: "d2",
+    reason: "taken_without_code" as const,
+    details: "Left with it.",
+    status: "escalated" as const,
+    opened_by: "seller" as const,
+    respond_by: null,
+    decide_by: "2026-10-28T00:00:00Z",
+    seller_note: null,
+    admin_note: null,
+    outcome: null,
+    created_at: "2026-10-14T00:00:00Z",
+    resolved_at: null,
+  };
+  const o = order({ status: "disputed", dispute: report, meet_by: null });
+  expect(currentDeadline(o)).toEqual({
+    label: "Buyer refunded unless a moderator decides by",
+    at: "2026-10-28T00:00:00Z",
+  });
+  expect(disputeLine(report, "buying")).toMatch(/confirm it to pay the seller/);
+  expect(disputeLine(report, "selling")).toMatch(/moderator is reviewing/);
+  expect(disputeLine({ ...report, status: "resolved", outcome: "withdrawn" }, "selling")).toMatch(
+    /buyer confirmed they have the item/,
   );
 });

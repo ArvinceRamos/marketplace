@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-13 · Status: Phase 13 — release checks done (not deployed)
+Last updated: 2026-10-14 · Status: Phase 14 — audit fixes done (not deployed)
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -43,6 +43,12 @@ Last updated: 2026-10-13 · Status: Phase 13 — release checks done (not deploy
 | T30 | Admin privilege abuse or escalation | Admin only from signed `app_metadata.role`; every admin route checks it and every admin function checks `app.is_admin()` again; each action writes `admin_actions` in the same transaction | Non-admin → 403 on every `/admin` route and 42501 on every admin function; `user_metadata.role = admin` → still 403 |
 | T31 | Restricted users keep abusing | Insert policies on listings, conversations, messages, offers check `not app.is_restricted(me)`; `order_create` checks too | Restricted user: create listing/chat/message/offer/order → 403 |
 | T32 | Money history lost on account deletion | Deletion refused with open orders or a balance; finished orders and ledger rows keep `null` for the deleted user | Delete with an open order → 409 `open_orders` |
+| T33 | Seller releases escrow with test-mode tools (audit A1) | Only the buyer may advance tracking to `delivered` (API) and skip `confirm_by` (`app.demo_fast_forward`) | Seller's last advance → 403; seller skip on delivered → 403 |
+| T34 | Buyer walk-away at a paid meetup (A2) | Buyer can't cancel a paid meetup in `confirmed`; buyer can't skip `meet_by`; seller can report "took the item" (money held for a moderator) | Buyer cancel → 409 `ask_seller_to_cancel`; report → disputed/escalated; handover code hidden |
+| T35 | Listing squatting with free orders (A3) | Max 3 open cash/COD orders per buyer (advisory lock); 3-day hold | 4th → 409 `too_many_unpaid_orders` |
+| T36 | Bait-and-switch / restricted edits (A5, A6) | API 409/403 + triggers on `listings` and `listing_images` (reserved: 23514; restricted: 42501); order keeps description and condition | API and direct SQL both refused |
+| T37 | Moderator self-dealing (A7) | `admin_resolve_dispute` refuses when the admin is the buyer or seller | 403 `own_dispute` |
+| T38 | Memory exhaustion from photos (C1) | PNG/WebP ≤ 16 MP (JPEG ≤ 40 MP, decoded at reduced scale); one decode at a time per process; browser shrinks to 2000 px | 20 MP PNG refused; 20 MP JPEG accepted |
 | T20 | Error leaks | Central handler returns generic 500; details only in logs with request ID; OpenAPI docs off in production | Forced error → no stack trace in response |
 
 ## 3. Keys and secrets
@@ -181,6 +187,15 @@ copies, which have no self-service export yet).
   **Found and fixed:** `null` in optional text fields caused 500s (Phase 12). **Accepted:** 500s
   carry no CORS headers; a trigger function from Phase 4 is executable by `anon` (Postgres refuses
   to run trigger functions outside triggers); timers are lazy.
+
+- Phase 14 (2026-10-14): fixes from `docs/AUDIT_2026-10-13.md` (T33–T38, plus: escalated disputes
+  refund the buyer after 14 days; one review counts per reviewer–reviewee pair; account deletion
+  pauses live listings before removing files; rate limits on profile edits, listing edits,
+  favorites, and offer answers; search limit 600/min per IP because server-rendered pages share
+  one IP). New migration's functions pin `search_path`; trigger functions are revoked from users.
+  Tests: 12 integration tests in `test_audit_fixes.py` (each failed before the migration, except
+  the new endpoint and cache tests), image limit unit test, frontend tests for the report form,
+  handover copy, dispute lines, and photo shrinking.
 
 ## 7. Content Security Policy (Phase 6b)
 Static policy in a header, no nonces (decision 2026-10-13): nonces force every page to render

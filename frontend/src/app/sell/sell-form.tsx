@@ -15,6 +15,7 @@ import {
   readListingForm,
   type FieldErrors,
 } from "@/lib/selling";
+import { shrinkPhoto } from "@/lib/shrink-photo";
 
 type LocalPhoto = PhotoTile & { file: File };
 
@@ -127,7 +128,7 @@ export function SellForm({
     for (const [index, photo] of photos.entries()) {
       setStatus(`Uploading photo ${index + 1} of ${photos.length}…`);
       const body = new FormData();
-      body.append("files", photo.file);
+      body.append("files", await shrinkPhoto(photo.file));
       try {
         await apiFetch(`/listings/${listing.id}/images`, { method: "POST", body });
       } catch {

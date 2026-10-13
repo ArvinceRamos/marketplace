@@ -57,6 +57,15 @@ export async function getProfileOr404(username: string): Promise<PublicProfile> 
   );
 }
 
+/** A public profile, or null when it doesn't exist or can't be loaded (for extras). */
+export async function getProfile(username: string): Promise<PublicProfile | null> {
+  try {
+    return await get<PublicProfile>(`/profiles/${encodeURIComponent(username)}`, { allow404: true });
+  } catch {
+    return null;
+  }
+}
+
 export async function getSellerListings(username: string, page = 1) {
   const q = page > 1 ? `?page=${page}` : "";
   return (await get<ListingPage>(`/profiles/${encodeURIComponent(username)}/listings${q}`))!;

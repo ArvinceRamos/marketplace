@@ -12,7 +12,18 @@ import type { Me } from "@/lib/profile";
  * Follow/Following toggle plus the follower count. Hidden on your own profile.
  * Guests see the count and are sent to log in when they press Follow.
  */
-export function FollowButton({ username, followers }: { username: string; followers: number }) {
+export function FollowButton({
+  username,
+  followers,
+  showCount = true,
+  fullWidth = false,
+}: {
+  username: string;
+  followers: number;
+  /** Off where the count is shown elsewhere (the seller page's stats). */
+  showCount?: boolean;
+  fullWidth?: boolean;
+}) {
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -37,7 +48,7 @@ export function FollowButton({ username, followers }: { username: string; follow
   }, [session, username]);
 
   const countText = <span className="text-small text-fg-muted">{followerText(Math.max(0, followers + delta))}</span>;
-  if (following === "self") return countText;
+  if (following === "self") return showCount ? countText : null;
 
   async function toggle() {
     if (session === "guest") {
@@ -59,9 +70,10 @@ export function FollowButton({ username, followers }: { username: string; follow
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className={`flex flex-col items-start gap-1 ${fullWidth ? "w-full" : ""}`}>
+      <div className={`flex flex-wrap items-center gap-3 ${fullWidth ? "w-full" : ""}`}>
         <Button
+          fullWidth={fullWidth}
           variant={following ? "secondary" : "primary"}
           aria-pressed={session === "user" ? following === true : undefined}
           disabled={busy || session === "loading" || (session === "user" && following === null)}
@@ -69,7 +81,7 @@ export function FollowButton({ username, followers }: { username: string; follow
         >
           {following ? "Following" : "Follow"}
         </Button>
-        {countText}
+        {showCount && countText}
       </div>
       {error && (
         <p role="alert" className="text-caption text-danger">

@@ -219,10 +219,12 @@ async def set_restriction(
 
 
 _DISPUTE_SQL = """
-    select d.id, d.reason::text as reason, d.details, d.status::text as status, d.respond_by,
-           d.seller_note, d.admin_note, d.outcome, d.created_at, d.resolved_at,
+    select d.id, d.reason::text as reason, d.details, d.status::text as status, d.opened_by,
+           d.respond_by, d.decide_by, d.seller_note, d.admin_note, d.outcome, d.created_at,
+           d.resolved_at,
            o.id as o_id, o.title, o.status::text as o_status, o.fulfilment::text as fulfilment,
            o.item_price_centavos, o.total_centavos, o.shipped_at, o.delivered_at,
+           o.description as o_description, o.condition::text as o_condition,
            b.username::text as buyer, s.username::text as seller
     from app.disputes d
     join app.orders o on o.id = d.order_id
@@ -237,7 +239,9 @@ def _dispute(r: Any) -> AdminDispute:
         reason=r["reason"],
         details=r["details"],
         status=r["status"],
+        opened_by=r["opened_by"],
         respond_by=r["respond_by"],
+        decide_by=r["decide_by"],
         seller_note=r["seller_note"],
         admin_note=r["admin_note"],
         outcome=r["outcome"],
@@ -254,16 +258,20 @@ def _dispute(r: Any) -> AdminDispute:
             seller=r["seller"],
             shipped_at=r["shipped_at"],
             delivered_at=r["delivered_at"],
+            description=r["o_description"],
+            condition=r["o_condition"],
         ),
     )
 
 
 async def disputes(db: AsyncConnection, status: str) -> list[AdminDispute]:
-    # Disputes whose seller ran out of time move to "escalated" first (lazy timer).
+    # Lazy timers first: unanswered disputes escalate, and escalated ones past their
+    # 14 days are refunded.
     await db.execute(
         text(
             """select app.order_apply_timers_admin(d.order_id) from app.disputes d
-               where d.status = 'open' and d.respond_by < now()"""
+               where (d.status = 'open' and d.respond_by < now())
+                  or (d.status = 'escalated' and d.decide_by < now())"""
         )
     )
     rows = await db.execute(

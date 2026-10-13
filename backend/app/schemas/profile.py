@@ -28,6 +28,7 @@ class MeResponse(BaseModel):
     display_name: str | None
     bio: str | None
     avatar_path: str | None
+    avatar_url: str | None = None  # public URL of avatar_path
     city_id: int | None
     age_confirmed: bool
     created_at: datetime

@@ -6,10 +6,12 @@ import pytest
 from PIL import Image
 
 from app.services.images import (
+    AVATAR_SIZE,
     FULL_MAX,
     MAX_UPLOAD_BYTES,
     THUMB_MAX,
     ImageRejected,
+    process_avatar,
     process_image,
 )
 
@@ -116,3 +118,20 @@ def test_pixel_bomb_is_rejected_before_decoding():
 
 def test_oversized_file_is_rejected():
     assert rejected(b"\xff\xd8" + b"0" * MAX_UPLOAD_BYTES) == "file_too_large"
+
+
+def test_full_decode_formats_have_a_lower_pixel_cap():
+    # 20 MP is fine as JPEG (decoded at a reduced scale) but too big as PNG, which
+    # decodes at full size and could exhaust a 512 MB server (audit C1).
+    buf = io.BytesIO()
+    Image.new("1", (5000, 4000)).save(buf, "PNG", optimize=True)
+    assert rejected(buf.getvalue()) == "image_too_large"
+    out = process_image(jpeg((5000, 4000)))
+    assert max(out.width, out.height) == FULL_MAX
+
+
+def test_avatar_is_a_clean_square_webp():
+    data = process_avatar(jpeg((1200, 800), gps=True))
+    img = open_webp(data)
+    assert img.size == (AVATAR_SIZE, AVATAR_SIZE)
+    assert not img.info.get("exif")

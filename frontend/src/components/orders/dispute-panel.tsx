@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormAlert, TextArea } from "@/components/ui/field";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import {
   DISPUTE_REASON_LABELS,
   disputeLine,
@@ -16,12 +16,14 @@ type Post = (action: string, url: string, body?: unknown) => Promise<string | nu
 /**
  * Buyer protection for online orders: report a problem (holds the money), see the
  * dispute's state, and the seller's "contest" form. Refund / withdraw / escalate
- * are simple buttons on the order page.
+ * are simple buttons on the order page. On a paid meetup the seller can report a
+ * buyer who left with the item without giving the code.
  */
 export function DisputePanel({ order, post }: { order: OrderDetail; post: Post }) {
   const canOpen = order.actions.includes("open_dispute");
+  const canReport = order.actions.includes("report_buyer");
   const canContest = order.actions.includes("dispute_contest");
-  if (!order.dispute && !canOpen) return null;
+  if (!order.dispute && !canOpen && !canReport) return null;
   return (
     <section aria-labelledby="dispute-heading" className="flex flex-col gap-3">
       <h2 id="dispute-heading" className="text-title">
@@ -32,8 +34,15 @@ export function DisputePanel({ order, post }: { order: OrderDetail; post: Post }
           <p className="font-medium">{DISPUTE_REASON_LABELS[order.dispute.reason]}</p>
           {order.dispute.details && <p>&ldquo;{order.dispute.details}&rdquo;</p>}
           <p className="text-fg-muted">
-            Reported {formatDateTime(order.dispute.created_at)}. {disputeLine(order.dispute, order.role)}
+            Reported by the {order.dispute.opened_by} {formatDateTime(order.dispute.created_at)}.{" "}
+            {disputeLine(order.dispute, order.role)}
           </p>
+          {order.dispute.status === "escalated" && order.dispute.decide_by && (
+            <p className="text-caption text-fg-muted">
+              If no moderator decides by {formatDate(order.dispute.decide_by)}, the buyer is
+              refunded in full.
+            </p>
+          )}
           {order.dispute.seller_note && (
             <p>
               <span className="text-fg-muted">Seller: </span>
@@ -47,6 +56,8 @@ export function DisputePanel({ order, post }: { order: OrderDetail; post: Post }
             </p>
           )}
         </div>
+      ) : canReport ? (
+        <ReportBuyerForm orderId={order.id} post={post} />
       ) : (
         <OpenDisputeForm order={order} post={post} />
       )}
@@ -116,6 +127,61 @@ function OpenDisputeForm({ order, post }: { order: OrderDetail; post: Post }) {
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Sending…" : "Send report"}
+        </Button>
+        <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ReportBuyerForm({ orderId, post }: { orderId: string; post: Post }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!open) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-small text-fg-muted">
+          Did the buyer leave with the item without giving you the code? Report it. The payment
+          stays on hold and a moderator decides.
+        </p>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          Buyer took the item
+        </Button>
+      </div>
+    );
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!note.trim()) {
+      setError("Tell the moderator what happened.");
+      return;
+    }
+    setBusy(true);
+    setError(await post("report_buyer", `/orders/${orderId}/dispute/report-buyer`, { note }));
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border border-border p-4" noValidate>
+      <TextArea
+        label="What happened?"
+        name="report-buyer-note"
+        rows={3}
+        maxLength={1000}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        hint="The buyer and a moderator see this. The buyer can confirm they have the item, which pays you."
+      />
+      <FormAlert message={error} />
+      <div className="flex gap-2">
+        <Button type="submit" disabled={busy}>
+          {busy ? "Sending…" : "Send to a moderator"}
         </Button>
         <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
           Cancel

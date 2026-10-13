@@ -105,6 +105,9 @@ class DisputeOrder(BaseModel):
     seller: str | None
     shipped_at: datetime | None
     delivered_at: datetime | None
+    # What the listing said when it was bought (null for orders before Phase 14).
+    description: str | None
+    condition: str | None
 
 
 class AdminDispute(Dispute):

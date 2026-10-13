@@ -40,8 +40,10 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 |---|---|---|---|
 | GET | `/health` | 🔓 | `{status:"ok"}`; does not touch DB (used by Docker/Render health checks) |
 | GET | `/health/ready` | 🔓 | checks DB; returns 503 if down |
-| GET | `/me` | 🔒 | own profile + email (only place email is returned) |
-| PATCH | `/me` | 🔒 | `display_name, username, bio, city_id`; 409 if username taken |
+| GET | `/me` | 🔒 | own profile + email (only place email is returned); `avatar_url` (Phase 15) |
+| PATCH | `/me` | 🔒 | `display_name, username, bio, city_id` (`city_id: null` clears it); 409 if username taken |
+| PUT | `/me/avatar` | 🔒 | multipart `file` (JPEG/PNG/WebP ≤ 8 MB): checked, centre-cropped to 400 px square WebP, no metadata, stored in the user's own `avatars/` folder; the old file is removed after commit. 422 `unsupported_image`/`invalid_image`; counts toward the photo upload limit (Phase 15) |
+| DELETE | `/me/avatar` | 🔒 | removes the profile photo (Phase 15) |
 | PUT | `/me/avatar` | 🔒 | multipart `file`; same checks as listing images; 1 file |
 | DELETE | `/me` | 🔒 | body `{confirm_username}`; deletes account (§SECURITY_PLAN account deletion) |
 
@@ -50,7 +52,7 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 |---|---|---|---|
 | GET | `/categories` | 🔓 | tree; cacheable. Each subcategory has `sizes` (its size list in display order; `[]` = no sizes) |
 | GET | `/locations` | 🔓 | regions → cities; cacheable |
-| GET | `/profiles/{username}` | 🔓 | public fields only: username, display_name, avatar_url, city, bio, joined_at, active_listing_count, follower_count |
+| GET | `/profiles/{username}` | 🔓 | public fields only: username, display_name, avatar_url, city, bio, joined_at, active_listing_count, `sold_count` (listings marked sold, Phase 15), follower_count, rating |
 | GET | `/profiles/{username}/listings` | 🔓 | active listings, paginated |
 
 ### Listings
@@ -58,6 +60,7 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 |---|---|---|---|
 | GET | `/listings` | 🔓 | search; see query params below |
 | GET | `/listings/{id}` | 🔓 | detail; owner also sees own draft. Includes `is_favorited`, `is_owner`, `my_conversation_id` when signed in |
+| GET | `/listings/{id}/viewer` | 🔒 | `{status, is_owner, is_favorited, my_conversation_id, my_open_order_id}`: the small signed-in answer the public listing page asks for (Phase 14) |
 | POST | `/listings` | 🔒 | create draft |
 | PATCH | `/listings/{id}` | 🔒 owner | edit fields (not status) |
 | POST | `/listings/{id}/status` | 🔒 owner | `{status: active|paused|sold}`; transitions per USER_FLOWS §3; publish requires ≥1 image |
@@ -65,6 +68,8 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 | GET | `/me/listings?status=active` | 🔒 | own listings by status (`draft`, `active`, `paused`, `sold`), newest change first, paginated |
 
 Seller rules (Phase 4): another user's listing, or a deleted one, is 404 for every seller action.
+Phase 14: editing fields or photos of a `reserved` listing is 409 `listing_reserved`; a restricted
+seller gets 403 `restricted` (pausing or marking sold still works).
 Create/edit bodies reject unknown fields (`seller_id`, `status`, …) with 422. A parent category or
 unknown city is 422 with a field message. Status errors: 409 `invalid_status_change`, 409
 `listing_needs_photo`. Repeating the current status is a no-op (200).
@@ -199,17 +204,18 @@ Design: `TRANSACTIONS_DESIGN.md`. Bodies never carry amounts; the database compu
 |---|---|---|---|
 | GET | `/listings/{id}/checkout` | 🔒 | `?offer_id=`; allowed fulfilments, payment methods, couriers, shipping fees, item price (accepted offer if given) |
 | POST | `/orders/quote` | 🔒 | `{listing_id, offer_id?, fulfilment, payment_method, courier?}` → amounts; nothing saved |
-| POST | `/orders` | 🔒 | same body → 201 order; listing becomes `reserved`. 409 `listing_unavailable`, `own_listing`, `option_unavailable`, `offer_not_usable`; 403 `blocked`, `restricted` |
+| POST | `/orders` | 🔒 | same body → 201 order; listing becomes `reserved`. 409 `listing_unavailable`, `own_listing`, `option_unavailable`, `offer_not_usable`, `too_many_unpaid_orders` (3 open cash/COD orders, Phase 14); 403 `blocked`, `restricted` |
 | GET | `/orders` | 🔒 | `?role=buying|selling&state=open|done`, paginated |
-| GET | `/orders/{id}` | 🔒 participant/admin | detail: amounts, status, deadlines, shipment + events, dispute, reviews, `handover_code` (buyer only), `actions` (what the caller may do now) |
+| GET | `/orders/{id}` | 🔒 participant/admin | detail: amounts, status, deadlines, shipment + events, dispute, reviews, `handover_code` (buyer only, while unpaid or confirmed), `actions` (what the caller may do now) |
 | POST | `/orders/{id}/pay` | 🔒 buyer | `pending_payment` → `{checkout_url}` (MockPay) |
-| POST | `/orders/{id}/cancel` | 🔒 | buyer: `pending_payment`/`confirmed`; seller: `confirmed`; refunds if paid |
+| POST | `/orders/{id}/cancel` | 🔒 | buyer: `pending_payment`/`confirmed`; seller: `confirmed`; refunds if paid. A **paid meetup** in `confirmed` is seller-only: the buyer gets 409 `ask_seller_to_cancel` (Phase 14) |
 | POST | `/orders/{id}/ship` | 🔒 seller | delivery, `confirmed` → `shipped` + fake waybill (Phase 11) |
 | POST | `/orders/{id}/confirm-received` | 🔒 buyer | `shipped`/`delivered` → `completed` (Phase 11) |
 | POST | `/orders/{id}/handover` | 🔒 seller | `{code}` meetup, `confirmed` → `completed`; 422 `wrong_code`; 409 `code_locked` after 5 wrong tries (Phase 11) |
 | POST | `/orders/{id}/handover-code` | 🔒 buyer | new code, resets tries (Phase 11) |
 | POST | `/orders/{id}/review` | 🔒 participant | `{rating 1–5, comment?}`; completed, within 30 days, once (Phase 11) |
-| POST | `/orders/{id}/dispute` | 🔒 buyer | `{reason, details?}` (Phase 12) |
+| POST | `/orders/{id}/dispute` | 🔒 buyer | `{reason: not_received|not_as_described|incomplete, details?}` (Phase 12) |
+| POST | `/orders/{id}/dispute/report-buyer` | 🔒 seller | `{note?}`; paid meetup in `confirmed`: the buyer left with the item without the code. Order → `disputed`, dispute `escalated` with `opened_by: seller`; 409 `cannot_report` (Phase 14) |
 | POST | `/orders/{id}/dispute/refund` · `/contest` | 🔒 seller | open dispute (Phase 12) |
 | POST | `/orders/{id}/dispute/withdraw` · `/escalate` | 🔒 buyer (escalate: either side) | (Phase 12) |
 | GET | `/profiles/{username}/reviews` | 🔓 | `{average, count, items}` public reviews only (Phase 11) |
@@ -223,8 +229,8 @@ Webhooks and test-mode tools (public routes have no user; they verify a signatur
 | POST | `/shipping/webhooks/mock` | signature | `MockCourier-Signature` (Phase 11) |
 | GET | `/mock-pay/sessions/{ref}` | 🔒 buyer | MockPay page data (demo tools) |
 | POST | `/mock-pay/sessions/{ref}/complete` | 🔒 buyer | `{outcome: success|failure}` → signed webhook (demo tools) |
-| POST | `/mock-courier/orders/{id}/advance` | 🔒 participant | next tracking step → signed webhook (demo tools, Phase 11) |
-| POST | `/demo/orders/{id}/fast-forward` | 🔒 participant | move the current deadline to now (demo tools, Phase 11) |
+| POST | `/mock-courier/orders/{id}/advance` | 🔒 participant | next tracking step → signed webhook (demo tools, Phase 11). Only the buyer may send `delivered` (403 `buyer_confirms_delivery`, Phase 14) |
+| POST | `/demo/orders/{id}/fast-forward` | 🔒 participant | move the current deadline to now (demo tools, Phase 11). Only the waiting side may skip (Phase 14): `confirm_by` buyer only; a paid meetup's `meet_by` seller only; an escalated dispute's 14 days seller only; otherwise 403 `cannot_skip` |
 
 Demo tool routes exist only when `DEMO_TOOLS_ENABLED=true` (otherwise 404).
 
@@ -238,8 +244,8 @@ All need a token whose `app_metadata.role` is `admin` (403 `not_admin` otherwise
 | POST | `/admin/listings/{id}/moderation` | `{moderation: ok|hidden, note?}` |
 | GET | `/admin/users` | `?q=` username search; restriction state |
 | POST | `/admin/users/{username}/restriction` | `{restricted: bool, note?}` |
-| GET | `/admin/disputes` | `?status=open|escalated|resolved` |
-| POST | `/admin/disputes/{id}/resolve` | `{outcome: refund_buyer|release_seller, note}` |
+| GET | `/admin/disputes` | `?status=open|escalated|resolved`; each has `opened_by`, `decide_by`, and the order's `description`/`condition` at purchase (Phase 14) |
+| POST | `/admin/disputes/{id}/resolve` | `{outcome: refund_buyer|release_seller, note}`; 403 `own_dispute` if the moderator is the buyer or seller (Phase 14) |
 | GET | `/admin/actions` | audit log, newest first |
 
 ## 3. Rate limits (initial values, tuned later)
@@ -253,12 +259,16 @@ All need a token whose `app_metadata.role` is `admin` (403 `not_admin` otherwise
 | Reports | 10 / day | user |
 | Block/unblock | 30 / hour | user |
 | Follow/unfollow | 60 / hour | user |
-| Public search | 120 / minute | IP |
+| Public search | 600 / minute (was 120; server-rendered pages share one IP, Phase 14) | IP |
 | Create order | 20 / hour | user |
 | Pay / MockPay complete | 30 / hour | user |
 | Withdraw | 10 / day | user |
 | Dispute actions, reviews | 30 / day | user |
 | Payment and shipping webhooks | 120 / minute | IP |
+| Edit profile (`PATCH /me`) | 20 / hour | user |
+| Edit listing (fields, status, photo order, photo removal) | 120 / hour | user |
+| Save/unsave favorites | 120 / hour | user |
+| Accept/reject/withdraw offers | 60 / hour | user |
 
 Built in Phase 6a (`app/core/ratelimit.py`): in-process sliding window, no extra dependency.
 Over the limit → 429 `rate_limited` with `Retry-After` (seconds). Refused requests don't count.

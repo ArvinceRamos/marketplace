@@ -134,8 +134,8 @@ npm run db:demo
 ```
 It only runs against localhost and can be re-run (it replaces the previous demo data). Demo sellers
 log in as `<username>@demo.test`; the script prints their local-only password. It also creates
-12 demo orders in every state (unpaid, paid, shipped, delivered, completed with reviews, cancelled,
-disputed, refunded, COD), 2 open reports, and a moderator: `demo_moderator@demo.test` (same password).
+13 demo orders in every state (unpaid, paid, shipped, delivered, completed with reviews, cancelled,
+disputed, refunded, COD, a seller report on a paid meetup), 2 open reports, and a moderator: `demo_moderator@demo.test` (same password).
 
 ## Test-mode checkout (simulated payments)
 Design: [Transactions design](docs/TRANSACTIONS_DESIGN.md) · research:
@@ -153,9 +153,14 @@ Try it (after `npm run db:demo`, signed in as a demo seller):
    exactly like a real provider would.
 3. Seller, in **Account → Orders → Selling**: **Mark as shipped** (fake `DEMO-…` waybill). Use
    **Test-mode tools → Advance tracking** to move the parcel, and **Skip ahead** to make a deadline
-   pass now (auto-cancel, auto-release, dispute escalation) instead of waiting days.
+   pass now (auto-cancel, auto-release, dispute escalation) instead of waiting days. Only the side
+   that is waiting may skip: the buyer marks the parcel delivered and skips their own 2-day check;
+   the seller can't skip a paid meetup's deadline for the buyer, and so on.
 4. Buyer: **Everything is OK** releases the money, or **Report a problem** holds it (dispute).
-   Meetups: the buyer shows a 6-digit **handover code**; the seller enters it to complete.
+   Meetups: the buyer shows a 6-digit **handover code**; the seller enters it to complete. A paid
+   meetup can only be cancelled by the seller; if the buyer leaves with the item without the code,
+   the seller presses **Buyer took the item** and a moderator decides. Escalated disputes with no
+   decision in 14 days refund the buyer.
 5. Both sides review (hidden until both review or 14 days pass). Money lands in **Account →
    Wallet**; withdraw to "Demo bank".
 6. Moderator (`demo_moderator@demo.test`): **Account → Moderation** for reports (hide a listing,

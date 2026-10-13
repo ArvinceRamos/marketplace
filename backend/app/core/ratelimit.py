@@ -39,12 +39,18 @@ RULES: dict[str, tuple[Rule, ...]] = {
     "report": (Rule(10, DAY),),
     "block": (Rule(30, HOUR),),  # block and unblock share one budget
     "follow": (Rule(60, HOUR),),  # follow and unfollow share one budget
-    "search": (Rule(120, MINUTE),),
+    # Search pages render on the web server, so one IP (the server's) carries many
+    # visitors; public lists are also cached there. Still caps direct scraping.
+    "search": (Rule(600, MINUTE),),
     "create_order": (Rule(20, HOUR),),
     "pay": (Rule(30, HOUR),),  # starting a payment and MockPay's buttons
     "withdraw": (Rule(10, DAY),),
     "order_action": (Rule(30, DAY),),  # disputes and reviews
     "webhook": (Rule(120, MINUTE),),  # per IP
+    "edit_profile": (Rule(20, HOUR),),
+    "edit_listing": (Rule(120, HOUR),),  # field edits, status, photo order and removal
+    "favorite": (Rule(120, HOUR),),  # save and unsave share one budget
+    "offer_response": (Rule(60, HOUR),),  # accept, reject, withdraw
 }
 
 # Drop empty keys every this many checks, so memory stays bounded by active users.

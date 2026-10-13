@@ -38,14 +38,22 @@ def _urls(request: Request) -> Urls:
 # --- favorites ---------------------------------------------------------------------
 
 
-@router.put("/listings/{listing_id}/favorite", status_code=status.HTTP_204_NO_CONTENT)
+@router.put(
+    "/listings/{listing_id}/favorite",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[per_user("favorite")],
+)
 async def add_favorite(listing_id: uuid.UUID, db: UserDb, claims: UserClaims) -> Response:
     """Idempotent: saving twice is fine."""
     await social.add_favorite(db, user_id(claims), listing_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/listings/{listing_id}/favorite", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/listings/{listing_id}/favorite",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[per_user("favorite")],
+)
 async def remove_favorite(listing_id: uuid.UUID, db: UserDb, claims: UserClaims) -> Response:
     await social.remove_favorite(db, user_id(claims), listing_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -157,16 +165,22 @@ async def make_offer(
     return await social.make_offer(db, user_id(claims), conversation_id, body.amount_centavos)
 
 
-@router.post("/offers/{offer_id}/accept", response_model=Offer)
+@router.post(
+    "/offers/{offer_id}/accept", response_model=Offer, dependencies=[per_user("offer_response")]
+)
 async def accept_offer(offer_id: uuid.UUID, db: UserDb, claims: UserClaims) -> Offer:
     return await social.respond_to_offer(db, user_id(claims), offer_id, "accepted")
 
 
-@router.post("/offers/{offer_id}/reject", response_model=Offer)
+@router.post(
+    "/offers/{offer_id}/reject", response_model=Offer, dependencies=[per_user("offer_response")]
+)
 async def reject_offer(offer_id: uuid.UUID, db: UserDb, claims: UserClaims) -> Offer:
     return await social.respond_to_offer(db, user_id(claims), offer_id, "rejected")
 
 
-@router.post("/offers/{offer_id}/withdraw", response_model=Offer)
+@router.post(
+    "/offers/{offer_id}/withdraw", response_model=Offer, dependencies=[per_user("offer_response")]
+)
 async def withdraw_offer(offer_id: uuid.UUID, db: UserDb, claims: UserClaims) -> Offer:
     return await social.respond_to_offer(db, user_id(claims), offer_id, "withdrawn")

@@ -25,7 +25,8 @@ assets, logo, or brand color is used.
   `text-heading` 22/28 · `text-display` 28/36. Page titles: `text-heading lg:text-display`.
 - **Color roles:** `bg-canvas`, `bg-surface`, `bg-surface-muted`, `text-fg`, `text-fg-muted`,
   `text-fg-subtle` (icons/disabled only, 3.1:1), `placeholder:text-fg-placeholder` (4.8:1), `bg-accent`, `hover:bg-accent-hover`, `bg-accent-soft`,
-  `text-danger` / `bg-danger-soft`, `text-success`, `bg-warning` (with `text-fg`).
+  `text-danger` / `bg-danger-soft`, `text-success`, `bg-warning` (with `text-fg`), `text-star`
+  (rating stars only, next to a text rating; Phase 15).
 - **Raw scales** (`brand-50…900`, `ink-50…950`) only when no role fits.
 - **Contrast:** `text-fg` and `text-fg-muted` pass WCAG AA on white; `bg-accent` with white text is 7:1.
 
@@ -42,6 +43,10 @@ assets, logo, or brand color is used.
 | `<Button>`, `<ButtonLink>`, `buttonClasses()` | `components/ui/button.tsx` | Actions vs navigation, same look |
 | `<TextLink>` | `components/ui/text-link.tsx` | Links inside sentences |
 | `<TextField>`, `<TextArea>`, `<FormAlert>` | `components/ui/field.tsx` | 44px inputs, 16px text, errors linked by `aria-describedby` |
+| `<ShareButton>` | `components/share-button.tsx` | Share sheet or copy link; `overlay` (on photos) or `outline` (44px square) |
+| `<ProfileStats>` | `components/profile-stats.tsx` | Rating · items sold · followers · joined strip (seller page, own profile) |
+| Listing page parts | `components/listing/` | `Gallery` (swipe + counter on phones; thumbnails, arrows, full-screen viewer on desktop), `ListingCta` (desktop panel + phone bar fixed to the bottom), `ListingRows`, `ListingViewerProvider` |
+| `<AccountSidebar>`, `<AccountShortcuts>` | `components/account-nav.tsx` | Account links: sidebar on desktop profile pages, 56px rows on phones |
 
 ## Rules
 1. One filled (primary) button per screen area; everything else secondary or ghost.
@@ -51,3 +56,6 @@ assets, logo, or brand color is used.
 5. No hardcoded hex colors or Tailwind palette colors (`teal-*`, `gray-*`) in components.
 6. Motion is short (150ms) and disabled under `prefers-reduced-motion`.
 7. Light theme only for now; dark mode is a later addition (tokens are role-based to make it easy).
+8. Phase 15 (redesign from Claude Design, `docs/design/CLAUDE_DESIGN_BUNDLE.md`): primary actions
+   render with the page (no empty slots that fill in later); phones keep the main action in a
+   bottom bar; seller trust (rating) sits next to the decision; pages end with a next step.

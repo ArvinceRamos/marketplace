@@ -34,7 +34,16 @@ def create_engine(database_url: str) -> AsyncEngine:
 
 
 async def _transaction(request: Request, claims: Claims | None) -> AsyncIterator[AsyncConnection]:
-    engine: AsyncEngine | None = request.app.state.engine
+    async with user_transaction(request.app.state.engine, claims) as conn:
+        yield conn
+
+
+@asynccontextmanager
+async def user_transaction(
+    engine: AsyncEngine | None, claims: Claims | None
+) -> AsyncIterator[AsyncConnection]:
+    """One transaction as the caller (RLS applies). Request handlers get theirs from
+    `Db`/`UserDb`; use this directly only when a step must commit on its own first."""
     if engine is None:
         raise AppError(503, "db_unavailable", "The service is starting up. Try again shortly.")
     role = "authenticated" if claims else "anon"

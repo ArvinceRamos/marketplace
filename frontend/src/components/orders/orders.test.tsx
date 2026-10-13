@@ -90,7 +90,9 @@ test("seller sees the report and must explain a contest", async () => {
       reason: "not_as_described",
       details: "Cracked screen",
       status: "open",
+      opened_by: "buyer",
       respond_by: "2026-10-15T00:00:00Z",
+      decide_by: null,
       seller_note: null,
       admin_note: null,
       outcome: null,
@@ -103,4 +105,30 @@ test("seller sees the report and must explain a contest", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Contest and ask a moderator" }));
   expect(await screen.findByText("Tell the moderator what happened.")).toBeTruthy();
   expect(post).not.toHaveBeenCalled();
+});
+
+test("seller of a paid meetup reports a buyer who took the item", async () => {
+  const post = vi.fn().mockResolvedValue(null);
+  const order = {
+    ...baseOrder,
+    role: "selling",
+    status: "confirmed",
+    actions: ["handover", "report_buyer", "cancel"],
+  } as unknown as OrderDetail;
+  render(<DisputePanel order={order} post={post} />);
+  fireEvent.click(screen.getByRole("button", { name: "Buyer took the item" }));
+  fireEvent.click(screen.getByRole("button", { name: "Send to a moderator" }));
+  expect(await screen.findByText("Tell the moderator what happened.")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("What happened?"), { target: { value: "Ran off" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send to a moderator" }));
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith("report_buyer", "/orders/o1/dispute/report-buyer", {
+      note: "Ran off",
+    }),
+  );
+});
+
+test("handover form tells the seller to keep the item until the code works", () => {
+  render(<HandoverForm onSubmit={vi.fn()} />);
+  expect(screen.getByText(/Keep the item until/)).toBeTruthy();
 });

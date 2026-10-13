@@ -6,7 +6,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormAlert, TextArea } from "@/components/ui/field";
 import { apiFetch } from "@/lib/api";
 import { errorText, useAdminData, type AdminDispute } from "@/lib/admin";
-import { formatDateTime } from "@/lib/format";
+import { CONDITION_LABELS, formatDate, formatDateTime } from "@/lib/format";
 import { DISPUTE_REASON_LABELS, formatMoney } from "@/lib/orders";
 import { AdminGate } from "../admin-gate";
 
@@ -97,15 +97,32 @@ function DisputeCard({
               : order.fulfilment}
         </dd>
         <dt className="text-fg-muted">Problem</dt>
-        <dd>{DISPUTE_REASON_LABELS[dispute.reason]}</dd>
+        <dd>
+          {DISPUTE_REASON_LABELS[dispute.reason]} (reported by the {dispute.opened_by})
+        </dd>
         {dispute.details && (
           <>
-            <dt className="text-fg-muted">Buyer says</dt>
+            <dt className="text-fg-muted">
+              {dispute.opened_by === "seller" ? "Seller says" : "Buyer says"}
+            </dt>
             <dd>&ldquo;{dispute.details}&rdquo;</dd>
           </>
         )}
-        <dt className="text-fg-muted">Seller says</dt>
-        <dd>{dispute.seller_note ? `“${dispute.seller_note}”` : "No answer"}</dd>
+        {dispute.opened_by === "buyer" && (
+          <>
+            <dt className="text-fg-muted">Seller says</dt>
+            <dd>{dispute.seller_note ? `“${dispute.seller_note}”` : "No answer"}</dd>
+          </>
+        )}
+        {(order.condition || order.description) && (
+          <>
+            <dt className="text-fg-muted">Listing at purchase</dt>
+            <dd className="whitespace-pre-line">
+              {order.condition && <span className="font-medium">{CONDITION_LABELS[order.condition]}. </span>}
+              {order.description || "No description."}
+            </dd>
+          </>
+        )}
         {dispute.admin_note && (
           <>
             <dt className="text-fg-muted">Decision</dt>
@@ -122,6 +139,12 @@ function DisputeCard({
               The seller can still answer until{" "}
               {dispute.respond_by ? formatDateTime(dispute.respond_by) : "the deadline"}. You can
               decide now anyway.
+            </p>
+          )}
+          {dispute.status === "escalated" && dispute.decide_by && (
+            <p className="text-caption text-fg-muted">
+              Without a decision by {formatDate(dispute.decide_by)}, the buyer is refunded
+              automatically.
             </p>
           )}
           <TextArea

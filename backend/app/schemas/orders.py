@@ -88,12 +88,17 @@ class DisputeReason(StrEnum):
     not_received = "not_received"
     not_as_described = "not_as_described"
     incomplete = "incomplete"
+    taken_without_code = "taken_without_code"  # seller report (paid meetup)
+
+
+# Reasons a buyer may give. "taken_without_code" is the seller's report only.
+BuyerDisputeReason = Literal["not_received", "not_as_described", "incomplete"]
 
 
 class DisputeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reason: DisputeReason
+    reason: BuyerDisputeReason
     details: Text1000 | None = None
 
 
@@ -181,7 +186,9 @@ class Dispute(BaseModel):
     reason: DisputeReason
     details: str | None
     status: Literal["open", "escalated", "resolved"]
+    opened_by: Literal["buyer", "seller"]
     respond_by: datetime | None
+    decide_by: datetime | None  # escalated: refunded if no moderator decides by then
     seller_note: str | None
     admin_note: str | None
     outcome: Literal["refunded", "released", "withdrawn"] | None

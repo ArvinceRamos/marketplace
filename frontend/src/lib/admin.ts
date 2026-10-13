@@ -2,6 +2,7 @@
 
 // Moderator screens (Phase 12). The API checks the signed admin role on every call.
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import type { Condition } from "@/lib/catalog-types";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { Dispute } from "@/lib/orders";
 import type { Person } from "@/lib/social";
@@ -49,6 +50,9 @@ export type AdminDispute = Dispute & {
     seller: string | null;
     shipped_at: string | null;
     delivered_at: string | null;
+    /** What the listing said when it was bought (null for older orders). */
+    description: string | null;
+    condition: Condition | null;
   };
 };
 

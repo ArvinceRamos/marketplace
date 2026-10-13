@@ -1,21 +1,24 @@
 """Public browsing endpoints: categories, locations, listings, seller profiles."""
 
+import time
 import uuid
-from typing import Annotated
+from collections.abc import Awaitable, Callable
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import StringConstraints
 
-from app.core.db import Db
+from app.core.db import Db, UserDb, user_transaction
 from app.core.errors import AppError
 from app.core.ratelimit import per_ip
-from app.core.security import Claims, optional_claims, user_id
+from app.core.security import Claims, optional_claims, require_claims, user_id
 from app.schemas.catalog import (
     CategoryNode,
     Condition,
     Courier,
     ListingDetail,
     ListingPage,
+    ListingViewer,
     Location,
     PaymentMethod,
     PublicProfile,
@@ -38,14 +41,32 @@ def _urls(request: Request) -> Urls:
     return Urls(request.app.state.settings.public_storage_url)
 
 
+# Categories and locations change only with a migration (and a restart), but every
+# page asks for them. Keep them in memory for an hour so a page view doesn't cost two
+# database round trips (audit C3).
+STATIC_TTL_SECONDS = 3600
+
+
+async def _static(request: Request, key: str, load: Callable[[Any], Awaitable[Any]]) -> Any:
+    cache: dict[str, tuple[float, Any]] = request.app.state.static_cache
+    now = time.monotonic()
+    hit = cache.get(key)
+    if hit is not None and now - hit[0] < STATIC_TTL_SECONDS:
+        return hit[1]
+    async with user_transaction(request.app.state.engine, None) as db:
+        value = await load(db)
+    cache[key] = (now, value)
+    return value
+
+
 @router.get("/categories", response_model=list[CategoryNode])
-async def get_categories(db: Db) -> list[CategoryNode]:
-    return await catalog.category_tree(db)
+async def get_categories(request: Request) -> list[CategoryNode]:
+    return await _static(request, "categories", catalog.category_tree)
 
 
 @router.get("/locations", response_model=list[Location])
-async def get_locations(db: Db) -> list[Location]:
-    return await catalog.locations(db)
+async def get_locations(request: Request) -> list[Location]:
+    return await _static(request, "locations", catalog.locations)
 
 
 @router.get("/listings", response_model=ListingPage, dependencies=[per_ip("search")])
@@ -97,6 +118,17 @@ async def get_listing(
     if detail is None:
         raise AppError(404, "listing_not_found", "This listing is not available.")
     return detail
+
+
+@router.get("/listings/{listing_id}/viewer", response_model=ListingViewer)
+async def get_listing_viewer(
+    listing_id: uuid.UUID, db: UserDb, claims: Annotated[Claims, Depends(require_claims)]
+) -> ListingViewer:
+    """Your relation to a listing: owner, saved, your chat and open order."""
+    viewer = await catalog.listing_viewer(db, listing_id, user_id(claims))
+    if viewer is None:
+        raise AppError(404, "listing_not_found", "This listing is not available.")
+    return viewer
 
 
 @router.get("/profiles/{username}", response_model=PublicProfile)

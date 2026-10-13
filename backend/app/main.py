@@ -63,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.storage = Storage(settings.storage_api_url, settings.supabase_publishable_key, http)
     app.state.auth_admin = AuthAdmin(settings.auth_admin_url, settings.supabase_secret_key, http)
     app.state.rate_limiter = RateLimiter() if settings.rate_limits_enabled else None
+    app.state.static_cache = {}  # categories and locations (api/v1/catalog.py)
     app.state.mockpay = MockPay(settings.mockpay_webhook_secret.get_secret_value())
     app.state.mockcourier = MockCourier(settings.mockcourier_webhook_secret.get_secret_value())
 

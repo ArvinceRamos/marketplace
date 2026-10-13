@@ -79,6 +79,17 @@ async def _lock_own(db: AsyncConnection, listing_id: uuid.UUID, uid: uuid.UUID) 
     return row
 
 
+async def _lock_editable(db: AsyncConnection, listing_id: uuid.UUID, uid: uuid.UUID) -> Any:
+    """Like _lock_own, for changes to what buyers see (fields and photos). Not while an
+    order holds the item (the buyer bought what it said then), and not while the
+    seller is restricted. Triggers check both again."""
+    row = await _lock_own(db, listing_id, uid)
+    if row["status"] == "reserved":
+        raise _RESERVED
+    await ensure_not_restricted(db, uid)
+    return row
+
+
 async def _check_refs(db: AsyncConnection, category_id: int | None, city_id: int | None) -> None:
     fields: dict[str, str] = {}
     if category_id is not None:
@@ -174,7 +185,7 @@ async def create_listing(db: AsyncConnection, uid: uuid.UUID, body: ListingCreat
 async def update_listing(
     db: AsyncConnection, uid: uuid.UUID, listing_id: uuid.UUID, body: ListingUpdate
 ) -> None:
-    current = await _lock_own(db, listing_id, uid)
+    current = await _lock_editable(db, listing_id, uid)
     changes = body.model_dump(mode="json", exclude_unset=True)
     await _check_refs(db, changes.get("category_id"), changes.get("city_id"))
     if "size" in changes or "category_id" in changes:
@@ -299,7 +310,7 @@ async def add_photos(
     listing_id: uuid.UUID,
     uploads: list[bytes],
 ) -> None:
-    await _lock_own(db, listing_id, uid)
+    await _lock_editable(db, listing_id, uid)
     count = await _photo_count(db, listing_id)
     if count + len(uploads) > MAX_PHOTOS:
         left = MAX_PHOTOS - count
@@ -346,6 +357,8 @@ async def remove_photo(
 ) -> list[str]:
     """Returns the files to remove from Storage after commit."""
     listing = await _lock_own(db, listing_id, uid)
+    if listing["status"] == "reserved":
+        raise _RESERVED
     image = (
         await db.execute(
             text(
@@ -371,7 +384,7 @@ async def remove_photo(
 async def reorder_photos(
     db: AsyncConnection, uid: uuid.UUID, listing_id: uuid.UUID, image_ids: list[uuid.UUID]
 ) -> None:
-    await _lock_own(db, listing_id, uid)
+    await _lock_editable(db, listing_id, uid)
     current = {
         r.id
         for r in await db.execute(

@@ -23,7 +23,6 @@ from app.integrations.mockcourier import MockCourier, next_step
 from app.integrations.mockpay import MockPay
 from app.schemas.catalog import SellerSummary
 from app.schemas.orders import (
-    OPEN_STATUSES,
     CheckoutOptions,
     CourierOption,
     Dispute,
@@ -250,21 +249,26 @@ def actions_for(
     can_review: bool = False,
     demo: bool = False,
     dispute: Dispute | None = None,
+    shipment_status: str | None = None,
 ) -> list[str]:
     """What the caller may do now. The database checks each action again."""
     buyer = row["buyer_id"] == uid
     status = row["status_text"]
     meetup = row["fulfilment_text"] == "meetup"
     online = row["payment_text"] == "online"
+    paid_meetup = meetup and online
     actions: list[str] = []
     if status == "pending_payment" and buyer:
         actions += ["pay", "cancel"]
     elif status == "confirmed":
         if not buyer:
             actions.append("handover" if meetup else "ship")
+            if paid_meetup:
+                actions.append("report_buyer")
         elif meetup:
             actions.append("new_code")
-        actions.append("cancel")
+        if not (buyer and paid_meetup):  # a paid meetup is cancelled by the seller only
+            actions.append("cancel")
     elif status in ("shipped", "delivered") and buyer and online:
         actions += ["confirm_received", "open_dispute"]
     elif status == "disputed" and dispute is not None and dispute.status != "resolved":
@@ -272,14 +276,26 @@ def actions_for(
             actions += ["dispute_escalate"] if buyer else ["dispute_refund", "dispute_contest"]
         if buyer:
             actions.append("dispute_withdraw")
-    if status == "shipped" and demo:
-        actions.append("advance_tracking")
-    open_dispute = dispute is not None and dispute.status == "open"
-    if demo and (status in ("pending_payment", "confirmed", "delivered") or open_dispute):
+    if demo and status == "shipped" and (buyer or shipment_status != "out_for_delivery"):
+        actions.append("advance_tracking")  # only the buyer marks the parcel delivered
+    if demo and _can_skip(status, buyer, paid_meetup, dispute):
         actions.append("fast_forward")
     if can_review:
         actions.append("review")
     return actions
+
+
+def _can_skip(status: str, buyer: bool, paid_meetup: bool, dispute: Dispute | None) -> bool:
+    """Demo "Skip ahead": only the side that is waiting may skip (app.demo_fast_forward)."""
+    if status == "pending_payment":
+        return True
+    if status == "confirmed":
+        return not (paid_meetup and buyer)
+    if status == "delivered":
+        return buyer
+    if status == "disputed" and dispute is not None:
+        return dispute.status == "open" or (dispute.status == "escalated" and not buyer)
+    return False
 
 
 async def _shipment(db: AsyncConnection, order_id: uuid.UUID) -> Shipment | None:
@@ -336,8 +352,8 @@ async def _dispute(db: AsyncConnection, order_id: uuid.UUID) -> Dispute | None:
             await db.execute(
                 text(
                     """select id, reason::text as reason, details, status::text as status,
-                              respond_by, seller_note, admin_note, outcome, created_at,
-                              resolved_at
+                              opened_by, respond_by, decide_by, seller_note, admin_note,
+                              outcome, created_at, resolved_at
                        from app.disputes where order_id = :id"""
                 ),
                 {"id": order_id},
@@ -370,8 +386,8 @@ async def detail(
         )
     ).scalar_one_or_none()
     code = None
-    if row["buyer_id"] == uid and row["status_text"] in OPEN_STATUSES:
-        # RLS returns the code to the buyer only.
+    if row["buyer_id"] == uid and row["status_text"] in ("pending_payment", "confirmed"):
+        # RLS returns the code to the buyer only, and only while a handover can happen.
         code = (
             await db.execute(
                 text("select handover_code from app.order_secrets where order_id = :id"),
@@ -390,6 +406,7 @@ async def detail(
         and other_here
         and review_until > datetime.now(UTC)
     )
+    shipment = await _shipment(db, order_id)
     return OrderDetail(
         **_summary_fields(row, uid, urls),
         courier=row["courier"],
@@ -410,12 +427,19 @@ async def detail(
         meet_by=row["meet_by"],
         confirm_by=row["confirm_by"],
         handover_code=code,
-        shipment=await _shipment(db, order_id),
+        shipment=shipment,
         my_review=mine,
         their_review=theirs,
         review_until=review_until,
         dispute=dispute,
-        actions=actions_for(row, uid, can_review=can_review, demo=demo, dispute=dispute),
+        actions=actions_for(
+            row,
+            uid,
+            can_review=can_review,
+            demo=demo,
+            dispute=dispute,
+            shipment_status=shipment.status if shipment else None,
+        ),
     )
 
 
@@ -445,6 +469,22 @@ async def open_dispute(
     await db.execute(
         text("select app.dispute_open(:id, cast(:reason as app.dispute_reason), :details)"),
         {"id": order_id, "reason": reason, "details": details},
+    )
+    return await detail(db, uid, order_id, urls, demo)
+
+
+async def report_buyer(
+    db: AsyncConnection,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    details: str | None,
+    urls: Urls,
+    demo: bool,
+) -> OrderDetail:
+    """Seller: the buyer left with the item without giving the code (goes to a moderator)."""
+    await db.execute(
+        text("select app.dispute_report_buyer(:id, :details)"),
+        {"id": order_id, "details": details},
     )
     return await detail(db, uid, order_id, urls, demo)
 
@@ -592,15 +632,20 @@ async def mockpay_session(db: AsyncConnection, uid: uuid.UUID, ref: str) -> Mock
 
 
 async def advance_tracking(
-    db: AsyncConnection, engine: AsyncEngine | None, order_id: uuid.UUID, courier: MockCourier
+    db: AsyncConnection,
+    engine: AsyncEngine | None,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    courier: MockCourier,
 ) -> str:
     """Demo: MockCourier sends the next tracking step. Reads without locking, so the
-    separate integration transaction can't wait on this one."""
+    separate integration transaction can't wait on this one. Only the buyer may send
+    the last step ("delivered"), so a seller can't start the payout clock alone."""
     row = (
         await db.execute(
             text(
-                """select s.tracking_number, s.status::text as status from app.shipments s
-                   join app.orders o on o.id = s.order_id
+                """select s.tracking_number, s.status::text as status, o.buyer_id
+                   from app.shipments s join app.orders o on o.id = s.order_id
                    where s.order_id = :id and o.status = 'shipped'"""
             ),
             {"id": order_id},
@@ -609,6 +654,10 @@ async def advance_tracking(
     step = next_step(row.status) if row else None
     if row is None or step is None:
         raise AppError(409, "nothing_to_advance", "This parcel has no next tracking step.")
+    if step == "delivered" and row.buyer_id != uid:
+        raise AppError(
+            403, "buyer_confirms_delivery", "In the demo, the buyer marks the parcel delivered."
+        )
     body, signature = courier.event(row.tracking_number, step)
     return await handle_shipping_webhook(engine, courier, body, signature)
 

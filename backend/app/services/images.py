@@ -7,22 +7,32 @@ all metadata, including EXIF GPS, so a seller's home location cannot leak.
 """
 
 import io
+import threading
 from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
-MAX_PIXELS = 40_000_000  # about 7300 x 5500; larger pictures are rejected before decoding
+# JPEG decodes at a reduced scale (draft), so big phone photos stay cheap. PNG and
+# WebP decode at full size (4 bytes per pixel, plus copies), so they get a lower cap
+# to keep one upload well inside Render's 512 MB.
+MAX_PIXELS = 40_000_000  # about 7300 x 5500 (JPEG); larger pictures are rejected before decoding
+MAX_PIXELS_FULL_DECODE = 16_000_000  # about 4900 x 3300 (PNG, WebP)
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 
 FULL_MAX = 1600  # long edge, px
 THUMB_MAX = 600
+AVATAR_SIZE = 400  # square, px; shown as a circle
 # Stored files must fit the bucket's 2 MB limit; drop quality until they do.
 STORED_MAX_BYTES = 1_900_000
 QUALITIES = (80, 70, 60, 50)
 
 # Pillow's own decompression-bomb guard, as a backstop to the explicit check.
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+
+# One photo is decoded at a time per process. Concurrent uploads wait their turn
+# instead of multiplying peak memory.
+_DECODE_LOCK = threading.Lock()
 
 
 class ImageRejected(Exception):
@@ -45,7 +55,8 @@ def _open(data: bytes) -> Image.Image:
         img = Image.open(io.BytesIO(data))
         if img.format not in ALLOWED_FORMATS:
             raise ImageRejected("unsupported_image", "Use a JPEG, PNG, or WebP photo.")
-        if img.width * img.height > MAX_PIXELS:
+        limit = MAX_PIXELS if img.format == "JPEG" else MAX_PIXELS_FULL_DECODE
+        if img.width * img.height > limit:
             raise ImageRejected("image_too_large", "This photo has too many pixels.")
         # JPEG only: decode at a reduced scale when the photo is much larger
         # than we need. Saves memory on big phone photos.
@@ -81,14 +92,29 @@ def _webp(img: Image.Image, max_edge: int) -> tuple[bytes, int, int]:
     raise ImageRejected("image_too_large", "This photo could not be made small enough.")
 
 
+def process_avatar(data: bytes) -> bytes:
+    """A square WebP avatar: centre-cropped, AVATAR_SIZE px, no metadata. CPU-bound."""
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ImageRejected("file_too_large", "The photo must be 8 MB or smaller.")
+    with _DECODE_LOCK:
+        with _open(data) as original:
+            upright = ImageOps.exif_transpose(original)
+            clean = _to_rgb(upright)
+        square = ImageOps.fit(clean, (AVATAR_SIZE, AVATAR_SIZE), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        square.save(out, "WEBP", quality=80, method=4, exif=b"", xmp=b"", icc_profile=None)
+    return out.getvalue()
+
+
 def process_image(data: bytes) -> ProcessedImage:
     """CPU-bound; call from a worker thread."""
     if len(data) > MAX_UPLOAD_BYTES:
         raise ImageRejected("file_too_large", "Each photo must be 8 MB or smaller.")
-    with _open(data) as original:
-        upright = ImageOps.exif_transpose(original)  # phone photos store rotation in EXIF
-        clean = _to_rgb(upright)
-    clean.info.clear()
-    full, width, height = _webp(clean, FULL_MAX)
-    thumb, _, _ = _webp(clean, THUMB_MAX)
+    with _DECODE_LOCK:
+        with _open(data) as original:
+            upright = ImageOps.exif_transpose(original)  # phone photos store rotation in EXIF
+            clean = _to_rgb(upright)
+        clean.info.clear()
+        full, width, height = _webp(clean, FULL_MAX)
+        thumb, _, _ = _webp(clean, THUMB_MAX)
     return ProcessedImage(full=full, thumb=thumb, width=width, height=height)

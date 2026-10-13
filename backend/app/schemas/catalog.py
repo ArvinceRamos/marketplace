@@ -125,6 +125,18 @@ class ListingDetail(ListingCard):
     hidden: bool = False  # hidden by a moderator (only the owner can still see it)
 
 
+class ListingViewer(BaseModel):
+    """What a signed-in viewer can do on a listing page. The page itself is public
+    and cached; this small answer is fetched by the browser instead of the full
+    listing again (audit C4)."""
+
+    status: ListingStatus
+    is_owner: bool
+    is_favorited: bool
+    my_conversation_id: uuid.UUID | None
+    my_open_order_id: uuid.UUID | None
+
+
 class ListingPage(BaseModel):
     items: list[ListingCard]
     page: int
@@ -141,6 +153,7 @@ class PublicProfile(BaseModel):
     city: CityRef | None
     joined_at: datetime
     active_listing_count: int
+    sold_count: int = 0  # listings marked sold (by the seller or a completed order)
     follower_count: int = 0
     rating_average: float | None = None  # public reviews only
     rating_count: int = 0

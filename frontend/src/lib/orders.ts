@@ -87,14 +87,21 @@ export type OrderDetail = OrderSummary & {
   actions: string[];
 };
 
-export type DisputeReason = "not_received" | "not_as_described" | "incomplete";
+export type DisputeReason =
+  | "not_received"
+  | "not_as_described"
+  | "incomplete"
+  | "taken_without_code"; // the seller's report on a paid meetup
 
 export type Dispute = {
   id: string;
   reason: DisputeReason;
   details: string | null;
   status: "open" | "escalated" | "resolved";
+  opened_by: "buyer" | "seller";
   respond_by: string | null;
+  /** Escalated: refunded to the buyer if no moderator decides by then. */
+  decide_by: string | null;
   seller_note: string | null;
   admin_note: string | null;
   outcome: "refunded" | "released" | "withdrawn" | null;
@@ -106,16 +113,24 @@ export const DISPUTE_REASON_LABELS: Record<DisputeReason, string> = {
   not_received: "I didn't receive it",
   not_as_described: "It's not as described",
   incomplete: "Parts or items are missing",
+  taken_without_code: "The buyer left with the item without giving the code",
 };
 
 /** One line for the dispute's state, from the viewer's side. */
 export function disputeLine(dispute: Dispute, role: OrderRole): string {
   if (dispute.status === "resolved") {
     if (dispute.outcome === "refunded") return "Resolved: the buyer was refunded in full.";
-    if (dispute.outcome === "withdrawn") return "Resolved: the buyer withdrew the report.";
+    if (dispute.outcome === "withdrawn")
+      return dispute.opened_by === "seller"
+        ? "Resolved: the buyer confirmed they have the item, and the money went to the seller."
+        : "Resolved: the buyer withdrew the report.";
     return "Resolved: the money was released to the seller.";
   }
-  if (dispute.status === "escalated") return "A moderator is reviewing this. Their decision is final.";
+  if (dispute.status === "escalated") {
+    if (dispute.opened_by === "seller" && role === "buying")
+      return "The seller says you left with the item without giving the code. A moderator will decide. If you have the item, confirm it to pay the seller.";
+    return "A moderator is reviewing this. Their decision is final.";
+  }
   return role === "selling"
     ? "Refund the buyer, or contest it so a moderator decides. If you don't answer in time, a moderator decides."
     : "Waiting for the seller to answer. You can ask a moderator now, or withdraw if it's solved.";
@@ -284,6 +299,8 @@ export function currentDeadline(order: OrderDetail): { label: string; at: string
     return { label: "Auto-completes", at: order.confirm_by };
   if (order.status === "disputed" && order.dispute?.status === "open" && order.dispute.respond_by)
     return { label: "Seller answers by", at: order.dispute.respond_by };
+  if (order.status === "disputed" && order.dispute?.status === "escalated" && order.dispute.decide_by)
+    return { label: "Buyer refunded unless a moderator decides by", at: order.dispute.decide_by };
   return null;
 }
 

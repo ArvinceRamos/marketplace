@@ -200,10 +200,25 @@ async def open_dispute(
         db,
         user_id(claims),
         order_id,
-        body.reason.value,
+        body.reason,
         body.details,
         _urls(request),
         _demo(request),
+    )
+
+
+@router.post(
+    "/orders/{order_id}/dispute/report-buyer",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def report_buyer(
+    order_id: uuid.UUID, body: DisputeNote, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Seller (paid meetup): the buyer left with the item without giving the code.
+    Holds the money for a moderator; the buyer can no longer cancel."""
+    return await orders.report_buyer(
+        db, user_id(claims), order_id, body.note, _urls(request), _demo(request)
     )
 
 
@@ -365,7 +380,9 @@ async def advance_tracking(
     order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
 ) -> OrderDetail:
     """A participant moves the parcel one tracking step (signed MockCourier event)."""
-    await orders.advance_tracking(db, request.app.state.engine, order_id, _mockcourier(request))
+    await orders.advance_tracking(
+        db, request.app.state.engine, user_id(claims), order_id, _mockcourier(request)
+    )
     return await orders.detail(db, user_id(claims), order_id, _urls(request), True)
 
 

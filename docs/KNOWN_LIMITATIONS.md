@@ -26,7 +26,8 @@ launch** should be fixed or decided before the site is shared publicly.
 - **A deleted user's token works up to 1 hour** after deletion; RLS still blocks their data
   because the profile is gone.
 - **Account deletion edge case**: if Auth fails after photos were removed, the account remains
-  without photos; trying again finishes the job.
+  without photos; trying again finishes the job. Since Phase 14 the live listings are paused
+  first, so they don't stay on sale without photos.
 - **CSP keeps `'unsafe-inline'` scripts** (static pages need it); React escaping is the main XSS
   defence (SECURITY_PLAN §7).
 - **Not-found pages return HTTP 200** with `noindex` (they stream).
@@ -38,8 +39,16 @@ launch** should be fixed or decided before the site is shared publicly.
 - **Sizes**: fixed lists (clothing letter sizes, EU shoe sizes, kids' ages); no "my sizes"
   preference; the size filter shows only on a subcategory, not on "All Fashion".
 - **Following feed** shows the 48 newest items, no paging.
-- **Photos are not shrunk in the browser** before upload (more mobile data on big photos).
+- **Photo shrinking in the browser** (Phase 14) needs `createImageBitmap`; older browsers send
+  the original. PNG and WebP above 16 MP are refused (JPEG up to 40 MP).
+- **Public pages are not cached on Vercel.** Next.js `'use cache'` keeps entries in memory, which
+  serverless instances usually don't share, and it would call the API during `next build`. The API
+  keeps categories and locations in memory for an hour instead (Phase 14). Revisit with
+  `'use cache: remote'` only if it stays free.
 - **No favorite counts** on cards.
+- **Account sidebar** (Phase 15) is on the profile pages only; other account pages still use the
+  header's Account menu. Profile photos are saved as soon as they are picked, separate from the
+  form's Save. "Items sold" counts listings marked sold (by the seller or an order), not orders.
 
 ## 3. Quality notes
 - **Lighthouse performance** 71–93 on a throttled mobile profile (mostly script blocking time);
@@ -56,7 +65,8 @@ launch** should be fixed or decided before the site is shared publicly.
 - **Demo photos** are generated shapes (a shirt for every Fashion item, including shoes).
 
 ## 4. Test-mode checkout (Phases 10–12)
-- **Timers are lazy**: unpaid orders (30 min), ship-by (5 days), meet-by (7 days), auto-complete
+- **Timers are lazy**: unpaid orders (30 min), ship-by (5 days; 3 for COD), meet-by (7 days; 3 for
+  cash), escalated disputes (14 days, then the buyer is refunded), auto-complete
   (2 days after delivery), and the seller's 48 hours on a dispute apply when someone opens the
   order, the order lists, the wallet, the listing, or the moderator queue. Nothing runs in the
   background, so an abandoned order can stay "open" in the database until then.
@@ -66,7 +76,14 @@ launch** should be fixed or decided before the site is shared publicly.
   buyer keeps the item (the listing is marked sold; the seller can "Undo sold").
 - **One item per order**; no bundles, no shipping address (couriers are simulated), no delivery
   fee by distance (demo flat rates).
-- **Cash and COD orders have no buyer protection** (no dispute), like the real thing.
+- **Cash and COD orders have no buyer protection** (no dispute), like the real thing. A buyer can
+  hold at most 3 open cash/COD orders.
+- **No disputes after a meetup**: entering the handover code completes the order. Buyers are told
+  to give the code only when they are happy.
+- **The escalated-dispute fallback favours the buyer**: with no moderator decision in 14 days the
+  buyer is refunded, also for a seller's "buyer took the item" report. Someone must watch `/admin`.
+- **Fake reviews are still possible with many accounts** (test-mode money is free); only repeat
+  orders between the same two accounts are capped (one review counts per pair).
 - **Restricted users can't message**, even in chats about their open orders; they can still finish
   orders (ship, hand over, confirm, review).
 - **The admin role reaches the token on the next sign-in** (or token refresh, up to 1 hour).

@@ -73,8 +73,9 @@ async def test_delivery_tracking_confirm_and_release(api, db, users):
     res = post(api, seller, oid, "ship")
     assert (res.status_code, code(res)) == (409, "cannot_ship")
 
-    for _ in range(4):
+    for _ in range(3):
         assert advance(api, seller, oid).status_code == 200
+    assert advance(api, buyer, oid).status_code == 200  # only the buyer marks it delivered
     order = get(api, buyer, oid)
     assert order["status"] == "delivered" and order["confirm_by"] and order["delivered_at"]
     assert [e["status"] for e in order["shipment"]["events"]] == [
@@ -108,7 +109,7 @@ async def test_delivered_orders_auto_complete_after_two_days(api, db, users):
     seller, buyer, _, oid = await shipped_order(api, db, users)
     for _ in range(4):
         advance(api, buyer, oid)
-    res = api.post(f"{API}/demo/orders/{oid}/fast-forward", headers=auth(seller))
+    res = api.post(f"{API}/demo/orders/{oid}/fast-forward", headers=auth(buyer))
     assert res.status_code == 200, res.text
     assert res.json()["status"] == "completed"
     assert balance(api, seller) == PRICE
@@ -118,8 +119,9 @@ async def test_cash_on_delivery_remits_to_the_seller(api, db, users):
     seller, buyer, _, oid = await shipped_order(api, db, users, payment="cod")
     order = get(api, buyer, oid)
     assert "confirm_received" not in order["actions"]  # the courier confirms COD
-    for _ in range(4):
+    for _ in range(3):
         advance(api, seller, oid)
+    advance(api, buyer, oid)
     assert get(api, buyer, oid)["status"] == "completed"
     assert balance(api, seller) == PRICE
     assert await ledger_sum(db, uuid.UUID(oid), "external") == -(PRICE + 12_000)

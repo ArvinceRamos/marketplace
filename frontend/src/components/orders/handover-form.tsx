@@ -29,8 +29,8 @@ export function HandoverForm({ onSubmit }: { onSubmit: (code: string) => Promise
         Buyer&rsquo;s handover code
       </label>
       <p id="handover-hint" className="text-caption text-fg-muted">
-        Ask for it after the buyer has checked the item. Entering it completes the order. 5 wrong
-        tries lock the code.
+        Keep the item until &ldquo;Complete handover&rdquo; succeeds. Ask for the code after the
+        buyer has checked the item; entering it completes the order. 5 wrong tries lock the code.
       </p>
       <div className="flex gap-2">
         <input

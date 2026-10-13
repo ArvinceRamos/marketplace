@@ -5,6 +5,7 @@ own ID only ever comes from the verified token.
 """
 
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from sqlalchemy import text
@@ -202,6 +203,24 @@ async def ensure_not_restricted(db: AsyncConnection, uid: uuid.UUID) -> None:
         )
 
 
+async def _check_money(db: AsyncConnection, uid: uuid.UUID) -> None:
+    money = (
+        await db.execute(
+            text(
+                """select exists (select 1 from app.orders where :uid in (buyer_id, seller_id)
+                                  and app.order_is_open(status)) as open_orders,
+                          (select coalesce(sum(amount_centavos), 0) from app.ledger_entries
+                            where account = 'seller' and user_id = :uid) as balance"""
+            ),
+            {"uid": uid},
+        )
+    ).one()
+    if money.open_orders:
+        raise AppError(409, "open_orders", "Finish or cancel your open orders first.")
+    if money.balance > 0:
+        raise AppError(409, "wallet_balance", "Withdraw your wallet balance first.")
+
+
 async def delete_account(
     db: AsyncConnection,
     uid: uuid.UUID,
@@ -210,10 +229,15 @@ async def delete_account(
     storage: Storage,
     auth_admin: AuthAdmin,
     request_id: str,
+    pause_listings: Callable[[], Awaitable[None]],
 ) -> None:
     """SECURITY_PLAN §4. Order matters: Storage files first (with the user's own
     token), then the Auth user (secret key). Auth would delete a user who still owns
-    files and leave the files behind. Database rows go by cascade."""
+    files and leave the files behind. Database rows go by cascade.
+
+    Before any file is removed, the user's live listings are paused in a transaction
+    of their own (committed at once), so nobody can start an order while the account
+    is being deleted. If deletion then fails, the listings are paused, not broken."""
     if not auth_admin.configured:
         # Check first, so photos are never removed when the account can't be.
         raise AppError(
@@ -233,21 +257,9 @@ async def delete_account(
             {"confirm_username": "Type your username exactly as shown."},
         )
     # Money history must not be lost (SECURITY_PLAN T32). A trigger checks again.
-    money = (
-        await db.execute(
-            text(
-                """select exists (select 1 from app.orders where :uid in (buyer_id, seller_id)
-                                  and app.order_is_open(status)) as open_orders,
-                          (select coalesce(sum(amount_centavos), 0) from app.ledger_entries
-                            where account = 'seller' and user_id = :uid) as balance"""
-            ),
-            {"uid": uid},
-        )
-    ).one()
-    if money.open_orders:
-        raise AppError(409, "open_orders", "Finish or cancel your open orders first.")
-    if money.balance > 0:
-        raise AppError(409, "wallet_balance", "Withdraw your wallet balance first.")
+    await _check_money(db, uid)
+    await pause_listings()
+    await _check_money(db, uid)  # again: an order may have started just before the pause
 
     folder = str(uid)
     for bucket in (LISTING_BUCKET, AVATAR_BUCKET):

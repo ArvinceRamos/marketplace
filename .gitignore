@@ -29,3 +29,7 @@ supabase/.temp/
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude Design exports (local only; large, includes screenshots)
+docs/design/claude-design/
+docs/design/claude-design.zip

@@ -1,6 +1,7 @@
 # Transactions Design (orders, simulated payments, fulfilment, disputes)
 
-Last updated: 2026-10-13 · Status: built in Phases 10–12 (migrations `20261013000400`–`700`).
+Last updated: 2026-10-14 · Status: built in Phases 10–12 (migrations `20261013000400`–`700`);
+Phase 14 audit fixes in `20261014000100` (see `docs/AUDIT_2026-10-13.md`).
 Differences from the first design: a dispute refund marks the item **sold** (the buyer keeps it;
 no returns), and errors from the money functions use SQLSTATE `MKnnn` with a hint (mapped by the API).
 Research behind it: `docs/research/TRANSACTIONS_RESEARCH.md`.
@@ -72,6 +73,12 @@ stateDiagram-v2
   Only order functions move a listing into or out of `reserved`.
 - **Cancel rules:** buyer may cancel in `pending_payment` or `confirmed`; seller may cancel in
   `confirmed`. Cancelling a paid order refunds it in full (item, shipping, fee).
+  **Phase 14:** a paid meetup in `confirmed` can be cancelled by the seller only, so a buyer can't
+  take the item, keep the code, and cancel for a refund.
+- **Unpaid holds (Phase 14):** cash and COD orders reserve the listing for 3 days (meet-by or
+  ship-by) instead of 7/5, and a buyer may have at most 3 open cash/COD orders.
+- **Snapshot (Phase 14):** the order keeps the listing's description and condition at purchase,
+  for moderators deciding "not as described". Reserved listings can't be edited (fields or photos).
 - **Late payment:** a payment that succeeds after its order was cancelled is captured and refunded
   at once (recorded in the ledger), never silently kept.
 - One open order per listing (partial unique index + listing row lock).
@@ -140,11 +147,14 @@ sequenceDiagram
   (`DEMO-JNT-1234567890`) → order `shipped`. Courier steps: `label_created → picked_up →
   in_transit → out_for_delivery → delivered`, only forward. In test mode a participant can press
   "Advance tracking (demo)", which sends a signed MockCourier event to the shipping webhook.
+  Only the buyer may send the last step (`delivered`), so a seller can't start the payout clock.
 - **Meetup handover code:** 6 random digits, stored in `order_secrets`, readable only by the
   buyer. The seller enters it; 5 wrong tries lock it until the buyer makes a new code.
 - **Demo fast-forward:** in test mode a participant can "Skip ahead" on an order, which moves its
   current deadline to now so the next read applies the timer. Lets a reviewer see auto-release,
-  auto-cancel, and escalation without waiting days.
+  auto-cancel, and escalation without waiting days. **Phase 14:** only the side that is waiting may
+  skip: the buyer skips their own 2-day check (`confirm_by`); the seller skips a paid meetup's
+  `meet_by` (it ends in a refund) and an escalated dispute's 14 days (it ends in a refund).
 
 ## 8. Disputes (online orders only)
 1. Buyer opens: `not_received` (while `shipped`), `not_as_described` or `incomplete` (while
@@ -152,14 +162,24 @@ sequenceDiagram
 2. Seller: **Refund** (→ order `refunded`, money back to the buyer) or **Contest** (→ escalated).
 3. Buyer may **withdraw** (→ order `completed`, money released) or **escalate** at any time.
 4. No seller answer in 48 h → escalated (lazy timer).
-5. Admin decides **refund buyer** or **release to seller**, with a note. Final.
-No returns or partial refunds (D9).
+5. Admin decides **refund buyer** or **release to seller**, with a note. Final. An admin can't
+   decide a dispute on their own order (Phase 14).
+6. **No decision 14 days after escalation → buyer refunded** (lazy timer, Phase 14), so money is
+   never held forever and both accounts can be deleted again.
+7. **Seller report (Phase 14):** on a paid meetup in `confirmed`, the seller can report "the buyer
+   left with the item without giving the code". The dispute starts `escalated`
+   (`opened_by = seller`). The buyer can confirm they have the item (withdraw → money released);
+   otherwise a moderator decides, with the same 14-day fallback.
+
+No returns or partial refunds (D9). No disputes after a meetup handover: the code completes the
+order, so the buyer gives it only when happy.
 
 ## 9. Reviews
 One review per side per **completed** order (any payment type), 1–5 stars + optional comment
 ≤ 1,000 chars, within 30 days. Double-blind: hidden from the other side and the public until both
 have reviewed or 14 days passed. The reviewer always sees their own. Seller pages show the average
-and count of public reviews.
+and count of public reviews. **Phase 14:** only the latest review per reviewer–reviewee pair
+counts, so repeat (free) orders between the same two accounts can't pile up stars.
 
 ## 10. Admin moderation (Phase 12)
 - Admin = `app_metadata.role = 'admin'` in the verified token (`app.is_admin()` reads

@@ -1,6 +1,6 @@
 # Implementation Roadmap
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ## Current state
 - Phase 0: done (approved 2026-10-10).
@@ -20,7 +20,10 @@ Last updated: 2026-10-13
 - **Phase 11: done (2026-10-13).** Shipping + MockCourier tracking, handover code, COD, auto-complete, demo tools, double-blind reviews.
 - **Phase 12: done (2026-10-13).** Disputes, admin role, reports queue, hide listings, restrict users, audit log, `/admin`.
 - **Phase 13: done (2026-10-13).** Release checks, demo orders in every state, README test-mode guide, limitations, security review.
-- **Exact next step:** your call. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release, GitHub repo + first CI run, someone to watch `/admin`). Deployment only after you say "Deploy now."
+- **Phase 14: done (2026-10-14).** Audit fixes (`docs/AUDIT_2026-10-13.md`): demo tools can't release escrow, paid meetups seller-cancel only + seller report, unpaid-order cap, reserved/restricted listings frozen, 14-day dispute fallback, image memory limits, rate limits, viewer endpoint, cached reference lists.
+- **Phase 15: done (2026-10-14).** Listing, seller, and profile pages redesigned from Claude Design; avatar upload; city picker; seller sold count.
+- **Not committed yet** (Phases 14 and 15 are in the working tree). The Claude Design export (`docs/design/claude-design*`) is git-ignored; the bundle `.md` is tracked.
+- **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release (not out on 2026-10-14; still 16.4.0), GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -174,6 +177,25 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 - Checks passed: `supabase db reset` replays all 10 migrations + seed; demo data loads twice in a row; Ruff; pytest 235/235 (one test assumed no public reviews existed and failed with demo data loaded; scoped to its own order); ESLint; typecheck; Vitest 96/96; `next build` (all new routes build; ran beside the dev server, which kept working); Docker image: exits without secrets, healthy with them, runs as `appuser`, demo routes and docs 404; Lighthouse 13.5 (production build, mobile) accessibility 100 and best practices 100 on the seller page (rating + reviews) and login; signed-in pages checked in the browser (labels, names, headings, duplicate IDs, 375 px no sideways scroll) on orders (meetup with code, disputed), wallet, admin disputes/reports/log; moderator released an escalated dispute through the UI (note required, confirm dialog, audit entry); `npm audit --omit=dev` 0; secret grep clean; no new dependencies (pip-audit not rerun)
 - Fixed during phase: idle confirm dialog on the order page had an empty button label; demo dispute text was item-specific
 
+### Phase 14 — Audit fixes (done 2026-10-14)
+Decisions (2026-10-14): paid meetups are cancelled by the seller only, plus a seller "buyer took the item" report; escalated disputes with no moderator decision in 14 days refund the buyer. DPA/BIR out of scope (personal project).
+- [x] Migration `20261014000100_audit_fixes.sql`: demo fast-forward only for the waiting side; buyer can't cancel a paid meetup; `dispute_report_buyer` (seller, starts escalated); buyer dispute reasons limited; `disputes.opened_by`, `decide_by` + trigger; 14-day fallback in timers; unpaid (cash/COD) orders capped at 3 per buyer and held 3 days; orders keep `description`/`condition`; triggers freeze reserved listings and restricted sellers' edits (fields and photos); admins can't decide their own dispute; one review counts per reviewer–reviewee pair
+- [x] API: last tracking step buyer-only; `POST /orders/{id}/dispute/report-buyer`; `GET /listings/{id}/viewer`; edits refused while reserved/restricted; account deletion pauses live listings first (own committed transaction) and re-checks orders; new rate limits (profile, listing edits, favorites, offer answers), search 600/min; categories/locations cached in memory 1 h; PNG/WebP ≤ 16 MP and one decode at a time; handover code hidden once disputed; admin disputes show the purchase snapshot and deadline
+- [x] UI: handover and code copy ("keep the item until it succeeds"), seller "Buyer took the item" form, buyer "I have the item", deadline line for escalated disputes, admin snapshot; listing page uses `/viewer`; photos shrunk in the browser (2000 px JPEG) before upload
+- [x] Docs: AUDIT status table, SECURITY_PLAN T33–T38, TRANSACTIONS_DESIGN, API spec, schema, limitations, README test-mode guide; demo seed adds a 13th order (seller report) and the buyer-cancel demo uses a delivery order
+- Checks passed: 11 new integration tests failed before the migration and pass after; `supabase db reset` replays all 11 migrations, demo data loads; Ruff; pytest 248/248; ESLint; typecheck; Vitest 102/102; `next build`; browser: paid meetup buyer has no Cancel/Skip, seller sees report + keep-item copy, reported order (buyer view: "I have the item", deadline, no code), listing page calls `/viewer` (200), no console errors
+- Changed from plan: Next.js `'use cache'` page caching was not used (entries stay in one serverless instance and would call the API during `next build`); the API caches reference lists instead. The Next.js security release is not out yet.
+
+### Phase 15 — Page redesign (done 2026-10-14)
+Source: Claude Design export (git-ignored) from `docs/design/CLAUDE_DESIGN_BUNDLE.md`.
+- [x] API: `PUT`/`DELETE /me/avatar` (checked, 400 px square WebP, own folder, old file removed after commit); `/me` returns `avatar_url`; public profiles return `sold_count`
+- [x] Listing page: actions render with the page (guest defaults, swap in place); phone action bar fixed to the bottom; swipe gallery with "1 / n", Share and Save on the photo; desktop thumbnails, arrows, full-screen viewer with zoom and keyboard; description under the title on phones; seller card with rating; one-line safety note; owner Pause / Mark sold / Edit; "See similar items" when sold/reserved; "More from @seller" and "More in {category}" rows (hidden for the owner)
+- [x] Seller page: "This is your public profile" bar; Follow (full width on phones) + Share + •••; stats strip (rating, items sold, followers, joined); Listings | Reviews tabs (`?tab=reviews`) with a rating summary
+- [x] Own profile: public-style header with Edit / View public profile, private email note, stats, "Finish your profile" checklist, account sidebar (desktop) and shortcut rows (phones), active listings preview; edit form with photo upload/remove, @username with link hint, city picker, bio counter, desktop preview
+- [x] Design system: `text-star` token (replaces a hard-coded hex in `Stars`); new shared parts listed in DESIGN_SYSTEM
+- Checks passed: Ruff; pytest 253/253 (avatar upload/replace/remove/reject with real Storage, city set/clear, sold count, avatar unit test); ESLint; typecheck; Vitest 112/112 (listing actions per viewer, gallery empty state, stats, share); `next build`; browser at 1280 px and 375 px: listing (guest, owner bar, rows hidden for owner), seller page with reviews (visitor), own profile and edit (city saved and shown publicly), no sideways scroll on any of them
+- Not checked by hand: picking a photo file in the browser (covered by API tests); screen reader pass on the new gallery and tabs
+
 ### Later
 - Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).
 
@@ -199,3 +221,5 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 | 2026-10-13 | 11 | Fulfilment and reviews. No new dependencies. Found and fixed the conditional confirm dialog closing itself. |
 | 2026-10-13 | 12 | Disputes and admin moderation. No new dependencies. Found and fixed 500s on `null` optional text. A local demo user (homebody_liza) has the moderator role for manual checks. |
 | 2026-10-13 | 13 | Release checks and polish. No new dependencies. Lighthouse run once via `npx` on a temporary `next start` (port 3200, stopped afterwards). Demo data reloaded; `demo_moderator@demo.test` added. |
+| 2026-10-14 | 14 | Audit fixes. No new dependencies. Local DB reset and demo data reloaded (new demo password, printed by the seed). Found during the phase: the handover code still showed on a disputed meetup (now hidden). |
+| 2026-10-14 | 15 | Page redesign from Claude Design. No new dependencies. A local demo profile's city was changed to Cebu City during the browser check. |

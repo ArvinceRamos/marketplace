@@ -315,7 +315,8 @@ that checks `auth.uid()`, locks the rows it changes (`for update`), and checks t
 
 ### orders
 - `listing_id` (on delete set null), `buyer_id`, `seller_id` (profiles, on delete set null),
-  `offer_id null`, snapshots `title`, `cover_path`
+  `offer_id null`, snapshots `title`, `cover_path`, and (Phase 14) `description`, `condition`
+  (what the listing said when it was bought; null for older orders)
 - `fulfilment`, `payment_method`, `courier null` (same five codes as listings)
 - `item_price_centavos`, `shipping_fee_centavos`, `buyer_fee_centavos`, `total_centavos`
   (check total = sum; all ≥ 0)
@@ -349,11 +350,15 @@ Update/delete refused by trigger. Wallet = `sum(amount) where account='seller' a
 ### reviews (Phase 11)
 `order_id`, `reviewer_id` (set null on delete), `reviewee_id` (cascade), `rating 1–5`,
 `comment ≤ 1,000`, `created_at`. Unique `(order_id, reviewer_id)`. Public when both sides reviewed
-or 14 days after completion (`app.review_is_public`).
+or 14 days after completion (`app.review_is_public`). Phase 14: public lists and the rating
+average count only the latest review per reviewer–reviewee pair (`app.public_reviews`).
 
 ### disputes (Phase 12)
 `id`, `order_id unique`, `reason`, `details ≤ 1,000`, `status`, `respond_by`, `seller_note`,
 `admin_note`, `outcome null` (`refunded`, `released`, `withdrawn`), `created_at`, `resolved_at`.
+Phase 14: `opened_by` (`buyer` | `seller`; the seller's reason is `taken_without_code`) and
+`decide_by` (set by a trigger to 14 days after a dispute becomes `escalated`; once it passes,
+the next read refunds the buyer).
 
 ### admin_actions (Phase 12)
 `id bigint identity`, `admin_id` (set null on delete), `action`, `target_type`, `target_id`,

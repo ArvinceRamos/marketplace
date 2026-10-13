@@ -7,7 +7,8 @@ import { ApiError } from "@/lib/api";
 
 /**
  * Heart toggle. Guests are sent to log in and come back here.
- * `overlay` sits on a card photo; `full` is a labelled button on the listing page.
+ * `overlay` sits on a card photo; `round` is the same circle (44px) placed by its parent
+ * (listing gallery); `full` is a labelled button on the listing page.
  */
 export function FavoriteButton({
   listingId,
@@ -16,7 +17,7 @@ export function FavoriteButton({
 }: {
   listingId: string;
   title: string;
-  variant?: "overlay" | "full";
+  variant?: "overlay" | "round" | "full";
 }) {
   const session = useSession();
   const { ids, toggle } = useFavorites();
@@ -49,6 +50,23 @@ export function FavoriteButton({
     </svg>
   );
 
+  if (variant === "round") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={session === "loading"}
+        aria-pressed={saved}
+        aria-label={saved ? `Remove ${title} from saved` : `Save ${title}`}
+        title={error ?? undefined}
+        className={`grid size-11 place-items-center rounded-full bg-surface/90 shadow-sm hover:bg-surface ${
+          saved ? "text-danger" : "text-fg"
+        }`}
+      >
+        {heart}
+      </button>
+    );
+  }
   if (variant === "overlay") {
     return (
       <button

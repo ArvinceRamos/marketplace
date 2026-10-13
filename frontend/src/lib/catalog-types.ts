@@ -84,10 +84,21 @@ export type PublicProfile = {
   city: CityRef | null;
   joined_at: string;
   active_listing_count: number;
+  /** Listings marked sold (by the seller or a completed order). */
+  sold_count: number;
   follower_count: number;
   /** Average of public reviews (1 decimal), null when there are none. */
   rating_average: number | null;
   rating_count: number;
   /** A moderator restricted this account. */
   restricted: boolean;
+};
+
+/** A signed-in viewer's relation to a listing (GET /listings/{id}/viewer). */
+export type ListingViewer = {
+  status: ListingCard["status"];
+  is_owner: boolean;
+  is_favorited: boolean;
+  my_conversation_id: string | null;
+  my_open_order_id: string | null;
 };

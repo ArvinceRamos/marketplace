@@ -72,7 +72,9 @@ async def create_listing(
     return await _detail(request, db, listing_id, claims)
 
 
-@router.patch("/listings/{listing_id}", response_model=ListingDetail)
+@router.patch(
+    "/listings/{listing_id}", response_model=ListingDetail, dependencies=[per_user("edit_listing")]
+)
 async def update_listing(
     listing_id: uuid.UUID, body: ListingUpdate, request: Request, db: UserDb, claims: UserClaims
 ) -> ListingDetail:
@@ -80,7 +82,11 @@ async def update_listing(
     return await _detail(request, db, listing_id, claims)
 
 
-@router.post("/listings/{listing_id}/status", response_model=ListingDetail)
+@router.post(
+    "/listings/{listing_id}/status",
+    response_model=ListingDetail,
+    dependencies=[per_user("edit_listing")],
+)
 async def change_status(
     listing_id: uuid.UUID, body: StatusChange, request: Request, db: UserDb, claims: UserClaims
 ) -> ListingDetail:
@@ -130,7 +136,11 @@ async def add_images(
     return await _detail(request, db, listing_id, claims)
 
 
-@router.patch("/listings/{listing_id}/images/order", response_model=ListingDetail)
+@router.patch(
+    "/listings/{listing_id}/images/order",
+    response_model=ListingDetail,
+    dependencies=[per_user("edit_listing")],
+)
 async def reorder_images(
     listing_id: uuid.UUID, body: ImageOrder, request: Request, db: UserDb, claims: UserClaims
 ) -> ListingDetail:
@@ -139,7 +149,11 @@ async def reorder_images(
     return await _detail(request, db, listing_id, claims)
 
 
-@router.delete("/listings/{listing_id}/images/{image_id}", response_model=ListingDetail)
+@router.delete(
+    "/listings/{listing_id}/images/{image_id}",
+    response_model=ListingDetail,
+    dependencies=[per_user("edit_listing")],
+)
 async def delete_image(
     listing_id: uuid.UUID,
     image_id: uuid.UUID,

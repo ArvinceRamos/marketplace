@@ -18,6 +18,7 @@ import {
   type FieldErrors,
   type ListingStatus,
 } from "@/lib/selling";
+import { shrinkPhoto } from "@/lib/shrink-photo";
 
 const STATUS_TEXT: Record<ListingStatus, string> = {
   draft: "Draft — only you can see it.",
@@ -96,7 +97,7 @@ export function EditListing({
     for (const [index, file] of good.slice(0, room).entries()) {
       setPhotoStatus(`Uploading photo ${index + 1} of ${Math.min(good.length, room)}…`);
       const body = new FormData();
-      body.append("files", file);
+      body.append("files", await shrinkPhoto(file));
       try {
         setListing(await apiFetch<ListingDetail>(`/listings/${id}/images`, { method: "POST", body }));
       } catch (e) {

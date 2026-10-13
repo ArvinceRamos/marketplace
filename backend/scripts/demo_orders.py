@@ -128,8 +128,9 @@ async def seed_orders(
         raise RuntimeError("demo handover failed")
     await d.review(oid, b, 4, "Nice item. Came a bit late to the meetup but all good.")
     await d.review(oid, s, 5, "On time and friendly.")
-    # 8. Paid, then cancelled by the buyer: refunded in full.
-    oid, b, _ = await d.order(7, 0, "meetup")
+    # 8. Paid delivery, cancelled by the buyer before shipping: refunded in full.
+    # (A paid meetup can only be cancelled by the seller.)
+    oid, b, _ = await d.order(7, 0, "delivery", courier="jnt")
     await d.pay(oid, b)
     await d.as_user(b, "select app.order_cancel($1)", oid)
     # 9. Disputed and contested: waiting for a moderator.
@@ -164,6 +165,12 @@ async def seed_orders(
     await d.pay(oid, b)
     await d.ship(oid, s, steps=4)
     await d.as_user(b, "select app.dispute_open($1, 'incomplete', null)", oid)
+    # 13. Paid meetup: the seller reports the buyer left with the item without the code.
+    oid, b, s = await d.order(4, 6, "meetup")
+    await d.pay(oid, b)
+    await d.as_user(
+        s, "select app.dispute_report_buyer($1, $2)", oid, "Buyer took the item and left."
+    )
 
     # Two open reports for the moderation queue.
     spam = await d.listing(6)
@@ -199,7 +206,7 @@ async def seed_orders(
         uuid.UUID(res.json()["id"]),
         *MODERATOR,
     )
-    print("Created 12 demo orders (every state), 2 reports, and demo_moderator@demo.test.")
+    print("Created 13 demo orders (every state), 2 reports, and demo_moderator@demo.test.")
 
 
 async def settle_demo_money(db: asyncpg.Connection, ids: list[uuid.UUID]) -> None:

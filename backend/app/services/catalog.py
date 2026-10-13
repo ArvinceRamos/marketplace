@@ -22,6 +22,7 @@ from app.schemas.catalog import (
     ListingDetail,
     ListingImage,
     ListingPage,
+    ListingViewer,
     Location,
     PaymentMethod,
     PublicProfile,
@@ -280,6 +281,28 @@ async def listing_detail(
     )
 
 
+async def listing_viewer(
+    db: AsyncConnection, listing_id: uuid.UUID, viewer_id: uuid.UUID
+) -> ListingViewer | None:
+    await db.execute(text("select app.listing_tick(:id)"), {"id": listing_id})
+    row = (
+        await db.execute(
+            text(
+                """select seller_id, status::text as status from app.listings
+                   where id = :id and status <> 'deleted'"""
+            ),
+            {"id": listing_id},
+        )
+    ).first()
+    if row is None:
+        return None  # missing, deleted, or not visible to this caller (RLS)
+    return ListingViewer(
+        status=row.status,
+        is_owner=row.seller_id == viewer_id,
+        **(await _viewer_state(db, listing_id, viewer_id)),
+    )
+
+
 async def _viewer_state(
     db: AsyncConnection, listing_id: uuid.UUID, viewer_id: uuid.UUID | None
 ) -> dict[str, Any]:
@@ -314,6 +337,9 @@ _PROFILE_SQL = """
            (select count(*) from app.listings l
              where l.seller_id = p.id and l.status = 'active'
                and l.moderation = 'ok') as active_count,
+           (select count(*) from app.listings l
+             where l.seller_id = p.id and l.status = 'sold'
+               and l.moderation = 'ok') as sold_count,
            app.follower_count(p.id) as follower_count,
            rs.average as rating_average, rs.total as rating_count,
            p.restricted_at is not null as restricted
@@ -341,6 +367,7 @@ async def public_profile(db: AsyncConnection, username: str, urls: Urls) -> Publ
         city=city,
         joined_at=row["created_at"],
         active_listing_count=row["active_count"],
+        sold_count=row["sold_count"],
         follower_count=row["follower_count"],
         rating_average=float(row["rating_average"]) if row["rating_average"] is not None else None,
         rating_count=row["rating_count"],

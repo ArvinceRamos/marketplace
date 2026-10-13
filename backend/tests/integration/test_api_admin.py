@@ -52,8 +52,9 @@ async def delivered_order(api, db, users):
     oid = place(api, buyer, listing, fulfilment="delivery", courier="jnt").json()["id"]
     pay(api, buyer, oid)
     assert post(api, seller, f"/orders/{oid}/ship").status_code == 200
-    for _ in range(4):
+    for _ in range(3):
         post(api, seller, f"/mock-courier/orders/{oid}/advance")
+    post(api, buyer, f"/mock-courier/orders/{oid}/advance")
     assert get(api, buyer, oid)["status"] == "delivered"
     return seller, buyer, listing, oid
 

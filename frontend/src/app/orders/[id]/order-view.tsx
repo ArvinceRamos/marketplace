@@ -88,11 +88,18 @@ export const SIMPLE_ACTIONS: Record<string, SimpleAction> = {
     label: "Problem solved",
     url: (id) => `/orders/${id}/dispute/withdraw`,
     variant: "secondary",
-    confirm: (o) => ({
-      title: "Withdraw your report?",
-      body: `This releases ${formatMoney(o.item_price_centavos)} to the seller and completes the order.`,
-      action: "Withdraw report",
-    }),
+    confirm: (o) =>
+      o.dispute?.opened_by === "seller"
+        ? {
+            title: "You have the item?",
+            body: `This releases ${formatMoney(o.item_price_centavos)} to the seller and completes the order.`,
+            action: "Yes, I have it",
+          }
+        : {
+            title: "Withdraw your report?",
+            body: `This releases ${formatMoney(o.item_price_centavos)} to the seller and completes the order.`,
+            action: "Withdraw report",
+          },
   },
   dispute_escalate: {
     label: "Ask a moderator",
@@ -240,7 +247,11 @@ export function OrderView({ id }: { id: string }) {
         disabled={busy !== null}
         onClick={() => (spec.confirm ? setConfirming(a) : runSimple(a))}
       >
-        {busy === a ? "Working…" : spec.label}
+        {busy === a
+          ? "Working…"
+          : a === "dispute_withdraw" && order.dispute?.opened_by === "seller"
+            ? "I have the item"
+            : spec.label}
       </Button>
     );
   };
@@ -296,8 +307,13 @@ export function OrderView({ id }: { id: string }) {
           <h2 className="text-small font-semibold">Your handover code</h2>
           <p className="font-mono text-display tracking-[0.3em]">{order.handover_code}</p>
           <p className="text-caption text-fg-muted">
-            Give this to the seller only after you have checked the item. Entering it completes the
-            order{order.payment_method === "online" ? " and releases your payment" : ""}.
+            Give this to the seller only after you have checked the item and are happy with it.
+            Entering it completes the order
+            {order.payment_method === "online" ? " and releases your payment" : ""}. You can&rsquo;t
+            report a problem after a meetup.
+            {order.payment_method === "online" &&
+              order.status === "confirmed" &&
+              " Paid meetups can only be cancelled by the seller, so ask them in chat if plans change."}
           </p>
         </section>
       )}
