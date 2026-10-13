@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import httpx2
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import MutableHeaders
 
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
@@ -15,6 +16,20 @@ from app.core.ratelimit import RateLimiter
 from app.core.security import TokenVerifier
 from app.services.auth_admin import AuthAdmin
 from app.services.storage import Storage
+
+
+def _security_headers(request: Request, headers: MutableHeaders) -> None:
+    """SECURITY_PLAN §3c. The API returns JSON only, so nothing may run or be framed."""
+    headers["X-Content-Type-Options"] = "nosniff"
+    headers["Referrer-Policy"] = "no-referrer"
+    headers["X-Frame-Options"] = "DENY"
+    headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    # The local docs page loads Swagger UI from a CDN; it is off in production anyway.
+    if request.url.path not in ("/docs", "/openapi.json"):
+        headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    # Answers to signed-in requests are personal: never store them in any cache.
+    if "authorization" in request.headers:
+        headers["Cache-Control"] = "no-store"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -52,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = uuid.uuid4().hex
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        _security_headers(request, response.headers)
         return response
 
     # Before CORS is added, so CORS wraps it and a 413 still carries CORS headers

@@ -81,6 +81,21 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
         run: npm run build
 
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Simple check (SECURITY_PLAN T16): Supabase secret keys, private keys (PEM or the
+      # JWK "d" field), and full JWTs must never be committed. GitHub secret scanning
+      # is the second check once the repo is on GitHub.
+      - name: No secrets in tracked files
+        run: |
+          if git grep -nE 'sb_secret_[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJhbGci[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{20,}|"d"\s*:\s*"[A-Za-z0-9_-]{40,}"'; then
+            echo "::error::Possible secret in a tracked file (see lines above)."
+            exit 1
+          fi
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 15

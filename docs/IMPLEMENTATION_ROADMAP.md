@@ -5,7 +5,7 @@ Last updated: 2026-10-13
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8, de2b157, 66dc74a, fa62b0a).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8, de2b157, 66dc74a, fa62b0a, 5bb4f56).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
 - **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
@@ -13,8 +13,9 @@ Last updated: 2026-10-13
 - **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
 - **Phase 6a: done (2026-10-13), committed 66dc74a.** Reports, blocks, account deletion, rate limits, `/settings`.
 - **Phase 6b: done (2026-10-13), committed fa62b0a.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
-- **Phase 7: done (2026-10-13).** Sizes, follow sellers + feed, deal options (labels only).
-- **Exact next step:** Phase 8 (release readiness).
+- **Phase 7: done (2026-10-13), committed 5bb4f56.** Sizes, follow sellers + feed, deal options (labels only).
+- **Phase 8: done (2026-10-13).** Release checks; see docs/KNOWN_LIMITATIONS.md.
+- **Exact next step:** your call. Before launch: the "Before launch" list in KNOWN_LIMITATIONS §1 (moderation tool, privacy contact, Next.js security release, GitHub repo + first CI run). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -121,10 +122,14 @@ if a seller takes GCash/Maya or ships by J&T etc. Payments and couriers stay **o
 - Checks passed: Ruff; pytest 191/191 (9 new: sizes, deal options, filters, follows, RLS); ESLint; tsc; Vitest 83/83 (+9); `next build`; Lighthouse accessibility + best practices 100 on fashion category, seller, listing, and payment-filtered search; browser: size filter (EU 42 → 1 item), payment+courier filter, listing details, sign-up, follow → 1 follower → `/following` feed, sell form (size appears with Shoes, couriers and COD with Delivery), draft saved and edit form prefilled, 375 px no sideways scroll; test account deleted (its follow removed)
 - Not done / notes: no "my sizes" saved preference; size filter only on a subcategory (not "All Fashion"); demo photos still draw a shirt for shoes; Vitest needed `--maxWorkers=2` on this machine (worker start-up timeouts when the machine is busy)
 
-### Phase 8 — Release readiness
-- [ ] Full test suite, lint, type checks, builds, migration replay from scratch
-- [ ] Re-check free-tier limits; update FREE_TIER_LIMITATIONS
-- [ ] Known bugs and limitations list
+### Phase 8 — Release readiness (done 2026-10-13)
+- [x] Full test suite, lint, type checks, builds, migration replay from scratch
+- [x] Re-check free-tier limits; update FREE_TIER_LIMITATIONS (Render: 512 MB / <1 CPU confirmed; Hobby 5 GB bandwidth and 500 build minutes, services suspended when bandwidth runs out without a payment method; Vercel adds 10 GB Fast Origin Transfer; Supabase, GitHub, auth emails unchanged)
+- [x] Known bugs and limitations list (`docs/KNOWN_LIMITATIONS.md`)
+- [x] Found and fixed: `npm run typecheck` failed on a clean checkout (route types live in the ignored `.next`), so CI would have failed; it now runs `next typegen` first
+- [x] Added: CI `secrets` job (SECURITY_PLAN T16 promised it); security headers on API responses (tested)
+- Checks passed: `supabase db reset` replays all 6 migrations + seed; Ruff; pytest 193/193 on the fresh database (+2 header tests); ESLint; typecheck from a clean state; Vitest 83/83; `next build`; Docker image builds, healthy, runs as `appuser`, docs 404 in production, headers present; `npm audit` production 0 (5 high dev-only, `braces` via ESLint tooling); `pip-audit` 0 known; secret grep of tracked files and git history clean; CI YAML parses
+- Not done: CI has still never run on GitHub (no repo); Next.js security release (due 2026-10-14) not out yet
 
 ### Later
 - Deal completion + reviews; admin moderation; Realtime chat; reserved status; saved searches; notifications.
@@ -143,5 +148,6 @@ if a seller takes GCash/Maya or ships by J&T etc. Payments and couriers stay **o
 | 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |
 | 2026-10-13 | 5 | Buyer–seller interactions done. Found and fixed a pre-existing DB bug: offer notes failed after a buyer deleted their account, blocking "mark sold". |
 | 2026-10-13 | 6a | Reports, blocks, account deletion, rate limits, settings. No new dependencies. Local secret key added to untracked `backend/.env`. Dev server stopped for `next build`; `.next` cleared. |
+| 2026-10-13 | 8 | Release checks. No new dependencies (Lighthouse and pip-audit run once, not installed). Demo data reloaded after the reset. |
 | 2026-10-13 | 7 | Closets, sizes, deal options. No new dependencies. Escrow and courier APIs left out on purpose (business registration, fees, BSP rules; ₱0 rule). Local DB reset to replay migrations. |
 | 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |

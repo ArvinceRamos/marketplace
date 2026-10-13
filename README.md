@@ -12,7 +12,7 @@ Supabase (Postgres, Auth, Storage, RLS) · Docker (API only) · GitHub Actions.
 Docs: [Product](docs/PRODUCT_REQUIREMENTS.md) · [Architecture](docs/ARCHITECTURE.md) ·
 [Database](docs/DATABASE_SCHEMA.md) · [API](docs/API_SPECIFICATION.md) ·
 [Security](docs/SECURITY_PLAN.md) · [Free tiers](docs/FREE_TIER_LIMITATIONS.md) ·
-[Roadmap](docs/IMPLEMENTATION_ROADMAP.md)
+[Roadmap](docs/IMPLEMENTATION_ROADMAP.md) · [Known limitations](docs/KNOWN_LIMITATIONS.md)
 
 ## Layout
 ```
@@ -89,7 +89,7 @@ uv run --directory backend ruff check .
 ```bash
 uv run --directory backend pytest
 ```
-With the local stack running, this includes ~70 integration tests (real users, real tokens, RLS).
+With the local stack running, this includes 120+ integration tests (real users, real tokens, RLS).
 They skip if Supabase is not running; set `REQUIRE_INTEGRATION=1` to make that a failure (CI does).
 They refuse to run against anything but localhost.
 Frontend:
@@ -141,7 +141,8 @@ log in as `<username>@demo.test`; the script prints their local-only password.
 | `db:start` hangs or fails | Make sure Docker Desktop is running; `docker info` should print a server version |
 | Port 3100 or 8000 in use | Stop the other process, or change the port in `frontend/package.json` / the uvicorn command (update `CORS_ORIGINS` too) |
 | Browser shows CORS error calling the API | `CORS_ORIGINS` in `backend/.env` must exactly match the frontend origin, e.g. `http://localhost:3100` |
-| First Vitest run times out | Run it again; the first run warms up a cache |
+| First Vitest run times out | Run it again; the first run warms up a cache. If workers keep timing out (busy PC), use `npx vitest run --maxWorkers=2` in `frontend/` |
+| `Cannot find name 'PageProps'` from `tsc` | Run `npm --prefix frontend run typecheck` (it runs `next typegen` first); plain `tsc` needs the generated route types |
 | A page hangs on "Compiling …" in `npm run dev` | Stop the dev server, delete `frontend/.next`, start it again. Don't run `npm run build` while the dev server is running (they share `.next`) |
 | `failed to decode signing keys` | Run `npm run db:keys -- --force`, then `npm run db:start` |
 | `/me` returns 503 `db_unavailable` | `DATABASE_URL` is missing in `backend/.env`, or Supabase is not running |

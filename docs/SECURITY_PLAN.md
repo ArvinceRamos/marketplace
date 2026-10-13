@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-13 · Status: Phase 7 — follows, sizes, deal options added and tested
+Last updated: 2026-10-13 · Status: Phase 8 — release checks done (not deployed)
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -27,7 +27,7 @@ Last updated: 2026-10-13 · Status: Phase 7 — follows, sizes, deal options add
 | T13 | SQL injection | SQLAlchemy bound parameters only; `websearch_to_tsquery` for search input | Quotes and SQL in `q` → normal results |
 | T14 | Open redirect after login | `next` must be a relative same-site path | `?next=https://evil.example` → goes to `/` |
 | T15 | User enumeration / ID probing | 404 for not-visible; generic auth errors from Supabase | Draft listing ID by stranger → 404 |
-| T16 | Secret leaks | `.env*` git-ignored; `.env.example` placeholders; CI uses local CLI keys only; secret scanning on GitHub; never log tokens | `git grep` for key patterns in CI (simple check) |
+| T16 | Secret leaks | `.env*` git-ignored; `.env.example` placeholders; CI uses local CLI keys only; secret scanning on GitHub; never log tokens | CI job `secrets` greps tracked files for Supabase secret keys, PEM/JWK private keys, and full JWTs (Phase 8); history scanned once (2026-10-13, clean) |
 | T17 | CSRF | API uses bearer tokens in headers, not cookies, so cross-site forms cannot call it; CORS restricted | — |
 | T18 | Scams between users | Safety page, chat banner, "payments happen outside the app", report + block, no fake "verified" labels | Manual review of copy |
 | T19 | Dependency vulnerabilities | Lockfiles (`uv.lock`, `package-lock.json`); Dependabot alerts (free); pin patched Next.js (security release due 2026-10-14) | CI installs from lockfiles |
@@ -68,6 +68,12 @@ See §7 for the CSP.
 | `Cross-Origin-Opener-Policy` | same-origin | Other windows can't script ours |
 | `Strict-Transport-Security` | 2 years, subdomains (no preload) | HTTPS only once hosted; ignored on http |
 | `X-Powered-By` | removed | Less fingerprinting |
+
+API (FastAPI, `app/main.py`, Phase 8, tested): every response gets `nosniff`, `X-Frame-Options:
+DENY`, `Referrer-Policy: no-referrer`, HSTS, and `Content-Security-Policy: default-src 'none';
+frame-ancestors 'none'` (JSON only; skipped for the local `/docs` page). Requests with an
+`Authorization` header get `Cache-Control: no-store`. Not covered: 413 from the body-size limit and
+unhandled 500s (both outside that middleware; JSON bodies only).
 
 ## 4. Account deletion (PH Data Privacy Act)
 1. User types their username to confirm.
@@ -134,14 +140,17 @@ copies, which have no self-service export yet).
   from hidden pages (`/profile`, `/profile/edit`, `/settings`). **No vulnerabilities found.**
   Accepted, documented trade-offs: `script-src 'unsafe-inline'` (§7); a blocked person can guess
   they were blocked because they can no longer write (by design, T5); rate limits reset on restart.
-  Open for Phase 7: the API's own JSON responses have no security headers (`nosniff` etc.).
+  The API's own headers were added in Phase 8 (§3c).
 - Phase 7 (2026-10-13): follows, sizes, deal options (T21, T22). Tests: follow/unfollow idempotent,
   self 422, unknown 404, guests 401; follows private under RLS (other users and guests see none;
   insert as someone else and setting `created_at` refused); blocking ends follows both ways and
   re-follow across a block is 403 with no reason; feed shows only followed sellers' active
   listings; sizes outside the category's list and impossible deal options are refused by the API
   (422 with field) and again by the database (23514).
-- Phase 8: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.
+- Phase 8 (2026-10-13): migrations replayed from scratch; full suites; `npm audit` (production 0;
+  5 high dev-only in `braces` via ESLint tooling), `pip-audit` on the locked backend
+  requirements (0 known); secrets grep of tracked files and full git history (clean); CI gains a
+  `secrets` job; API security headers. Remaining items: docs/KNOWN_LIMITATIONS.md.
 
 ## 7. Content Security Policy (Phase 6b)
 Static policy in a header, no nonces (decision 2026-10-13): nonces force every page to render
