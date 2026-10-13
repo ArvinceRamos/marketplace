@@ -49,6 +49,9 @@ export type ListingDetail = ListingCard & {
   created_at: string;
   updated_at: string;
   is_owner: boolean;
+  // Only meaningful for a signed-in viewer.
+  is_favorited: boolean;
+  my_conversation_id: string | null;
 };
 
 export type ListingPage = {

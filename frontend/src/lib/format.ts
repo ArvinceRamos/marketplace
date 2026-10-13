@@ -36,3 +36,14 @@ export const CONDITION_HINTS: Record<Condition, string> = {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" });
 }
+
+/** "Oct 13, 3:45 PM" in Philippine time. Absolute, so render output stays pure. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
+}

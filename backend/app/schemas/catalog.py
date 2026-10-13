@@ -89,6 +89,9 @@ class ListingDetail(ListingCard):
     created_at: datetime
     updated_at: datetime
     is_owner: bool
+    # Only filled in for a signed-in viewer.
+    is_favorited: bool = False
+    my_conversation_id: uuid.UUID | None = None
 
 
 class ListingPage(BaseModel):

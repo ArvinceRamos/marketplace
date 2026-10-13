@@ -5,12 +5,13 @@ Last updated: 2026-10-13
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1; Phase 4 not committed yet).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8; Phase 5 not committed yet).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
 - **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
 - **Phase 4: done (2026-10-13).** Create/edit/status/delete, photo pipeline, `/sell`, `/my-listings`, edit page.
-- **Exact next step:** Phase 5 (favorites, chat, offers) when you say yes.
+- **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
+- **Exact next step:** Phase 6 (trust, safety, polish) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -73,11 +74,16 @@ Last updated: 2026-10-13
 - Learned: Auth deletes users who still own Storage files and leaves the files behind; account deletion (Phase 6) must remove them first
 
 ### Phase 5 — Buyer–seller interactions
-- [ ] Favorites, conversations, messages (polling), unread counts, offers with history
-- Checks: buyer and seller journeys end to end; participant/offer/block tests
+- [x] API: favorites (+ IDs for hearts), start chat, inbox, thread, messages (before/after paging), read markers, unread count, offers (make/accept/decline/withdraw, history)
+- [x] DB: `app.expire_stale_offers` (lazy 7-day expiry); fixed message guard so offer notes still work after a buyer deletes their account
+- [x] UI: hearts on cards and listing page, `/favorites`, Chat/Open chat on listing page, `/inbox` (side by side on desktop, one at a time on phones), thread with offers, header Inbox badge + Account menu
+- Checks passed: Ruff; pytest 167/167 (10 new social tests incl. a regression test proven to fail on the old guard); ESLint; tsc; Vitest 57/57; `next build`; browser: buyer saves, chats, offers; seller sees unread badge, accepts with confirm; live status update while the chat is open; logout leaves login form empty; 375 px with no sideways scroll; polling rate measured
+- Fixed during phase: offer cards kept an old status; polling burst on quick tab switches; login/register kept typed passwords in hidden pages; chat column overflow on phones; header 2 px too wide on phones
+- Not done: `favorite_count` on cards (needs a counting function; deferred); block/unblock UI and hiding blocked chats (Phase 6, the DB already blocks messaging)
 
 ### Phase 6 — Trust, safety, polish
-- [ ] Reports, blocks, safety page, privacy/terms pages, account deletion
+- [ ] Reports, blocks (UI + hide blocked chats), safety page, privacy/terms pages, account deletion (remove Storage files first)
+- [ ] Rate limits (from Phase 4), Lighthouse accessibility audit (from Phase 3)
 - [ ] Accessibility pass, error/empty states, security headers/CSP
 - [ ] `/security-review`, fix findings
 
@@ -101,3 +107,4 @@ Last updated: 2026-10-13
 | 2026-10-13 | 2.5 | Design system: tokens + primitives in `globals.css`, Inter font, deep-indigo accent, Button/ButtonLink/TextLink/layout primitives; existing pages migrated. Rules in `docs/DESIGN_SYSTEM.md`. Checks: ESLint, tsc, Vitest 15/15, `next build`, browser check desktop + 375px. |
 | 2026-10-13 | 3 | Browsing done. Found and fixed an account-deletion bug (offer guard + report constraint) via leftover test users. Decision: deleting a seller removes their listings and the chats about them (docs updated). |
 | 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |
+| 2026-10-13 | 5 | Buyer–seller interactions done. Found and fixed a pre-existing DB bug: offer notes failed after a buyer deleted their account, blocking "mark sold". |

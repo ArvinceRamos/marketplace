@@ -16,7 +16,8 @@ export function LoginForm() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     setPending(true);
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({
@@ -28,6 +29,10 @@ export function LoginForm() {
       setPending(false);
       return;
     }
+    // Pages stay mounted after navigation; never leave a typed password behind
+    // (it would reappear after logging out on a shared device).
+    formEl.reset();
+    setPending(false);
     router.replace(next);
     router.refresh();
   }

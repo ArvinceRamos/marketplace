@@ -26,7 +26,8 @@ export function RegisterForm() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const ageConfirmed = form.get("age_confirmed") === "on";
@@ -48,6 +49,8 @@ export function RegisterForm() {
       setPending(false);
       return;
     }
+    formEl.reset(); // no password left in the hidden page (see login-form.tsx)
+    setPending(false);
     if (data.session) {
       router.replace("/profile/edit");
       router.refresh();

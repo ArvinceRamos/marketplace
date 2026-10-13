@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { FavoriteButton } from "@/components/favorite-button";
 import type { ListingCard as Card } from "@/lib/catalog-types";
 import { CONDITION_LABELS, formatPrice } from "@/lib/format";
 
@@ -28,6 +29,7 @@ export function ListingCard({ listing, priority = false }: { listing: Card; prio
             No photo
           </span>
         )}
+        <FavoriteButton listingId={listing.id} title={listing.title} />
         {badge && (
           <span className="absolute top-2 left-2 rounded-full bg-ink-950/80 px-2 py-0.5 text-caption font-medium text-white">
             {badge}

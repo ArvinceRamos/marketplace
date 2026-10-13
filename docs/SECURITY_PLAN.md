@@ -84,6 +84,10 @@ and a counterfeit/IP report reason.
 - Phase 4: upload attack tests (T6–T8). Done 2026-10-13: renamed scripts, truncated JPEG, GIF,
   60-megapixel PNG bomb, 9 MB file, oversized and chunked bodies, 9th photo, GPS EXIF gone from
   stored files, strangers get 404 on every seller action. Rate limits (T11) are **not built yet**.
-- Phase 5: participant, offer, and block tests (T3–T5).
+- Phase 5: participant, offer, and block tests (T3–T5). Done 2026-10-13: strangers get 404 on
+  every chat and offer route; sender cannot be spoofed (422); buyer cannot accept, seller cannot
+  offer or withdraw; answered/expired offers are 409; blocked users cannot start chats, message, or
+  offer. Also: login and register forms now clear after success, so a typed password is not kept
+  in the hidden page after logging out on a shared device.
 - Phase 6: run `/security-review` on the branch; fix findings; review headers/CSP.
 - Phase 7: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.

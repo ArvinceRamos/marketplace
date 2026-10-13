@@ -5,7 +5,7 @@ import { SearchBox } from "@/components/catalog/search-box";
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
-      <div className="container-page flex h-(--header-height) items-center gap-4">
+      <div className="container-page flex h-(--header-height) items-center gap-2 sm:gap-4">
         <Link href="/" className="shrink-0 rounded-sm text-title font-semibold tracking-tight text-accent">
           Marketplace
         </Link>

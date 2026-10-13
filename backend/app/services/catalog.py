@@ -240,7 +240,27 @@ async def listing_detail(
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         is_owner=viewer_id is not None and row["seller_id"] == viewer_id,
+        **(await _viewer_state(db, listing_id, viewer_id)),
     )
+
+
+async def _viewer_state(
+    db: AsyncConnection, listing_id: uuid.UUID, viewer_id: uuid.UUID | None
+) -> dict[str, Any]:
+    if viewer_id is None:
+        return {}
+    row = (
+        await db.execute(
+            text(
+                """select exists (select 1 from app.favorites
+                                  where user_id = :uid and listing_id = :id) as fav,
+                          (select id from app.conversations
+                            where listing_id = :id and buyer_id = :uid) as conv"""
+            ),
+            {"id": listing_id, "uid": viewer_id},
+        )
+    ).one()
+    return {"is_favorited": row.fav, "my_conversation_id": row.conv}
 
 
 # --- public profiles ---------------------------------------------------------------

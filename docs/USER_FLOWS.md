@@ -73,7 +73,7 @@ sequenceDiagram
   API->>DB: get or create (listing active, buyer ≠ seller, not blocked)
   API-->>Web: conversation id
   Buyer->>API: POST /conversations/{id}/messages "Is this available?"
-  Seller->>API: GET /conversations (polling every ~10s while open)
+  Seller->>API: GET /conversations/{id}/messages?after=… (polling every ~10s while open)
   Seller->>API: POST message "Yes"
   Buyer->>API: POST /conversations/{id}/offers ₱14,000
   API->>DB: offer pending (only one pending per chat) + offer message
@@ -110,7 +110,9 @@ stateDiagram-v2
 
 ## 6. Favorites
 Heart on cards and listing page. Guests are sent to login. `/favorites` shows saved items;
-sold or removed items show a label and can be removed.
+sold or paused items show a label and can be removed; deleted listings drop out.
+Header (signed in): Sell · Inbox (unread badge) · Account menu (Profile, My listings, Saved items,
+Log out).
 
 ## 7. Report and block
 ```mermaid

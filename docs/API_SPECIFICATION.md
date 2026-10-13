@@ -113,7 +113,8 @@ Body size limits: JSON 64 KB, multipart 64.25 MB. A larger `Content-Length` gets
 |---|---|---|---|
 | PUT | `/listings/{id}/favorite` | 🔒 | idempotent; 409 if own listing |
 | DELETE | `/listings/{id}/favorite` | 🔒 | idempotent; 204 |
-| GET | `/me/favorites` | 🔒 | paginated; includes unavailable items with status |
+| GET | `/me/favorites` | 🔒 | paginated; sold and paused items keep their status; deleted listings drop out (no longer visible under RLS) |
+| GET | `/me/favorite-ids` | 🔒 | newest 1,000 saved listing IDs, for the hearts on cards |
 
 ### Conversations and messages
 | Method | Path | Auth | Notes |
@@ -121,10 +122,16 @@ Body size limits: JSON 64 KB, multipart 64.25 MB. A larger `Content-Length` gets
 | POST | `/listings/{id}/conversations` | 🔒 | get-or-create as buyer; 409 if own listing or not active; 403 if blocked either way |
 | GET | `/conversations` | 🔒 | inbox: `id, listing{id,title,thumb,status}, other_user, last_message{preview,at}, unread_count`; `?role=buying|selling` |
 | GET | `/conversations/{id}` | 🔒 participant | header info + listing state + latest offer |
-| GET | `/conversations/{id}/messages` | 🔒 participant | keyset paging |
+| GET | `/conversations/{id}/messages` | 🔒 participant | oldest first; `?before=<id>` older page (`next_before`), `?after=<id>` only newer (polling); `limit` ≤ 50. Offer messages embed the offer |
 | POST | `/conversations/{id}/messages` | 🔒 participant | `{body}` 1–2,000 chars; 403 if blocked |
 | POST | `/conversations/{id}/read` | 🔒 participant | sets my `last_read_at` |
 | GET | `/me/unread-count` | 🔒 | total unread for the nav badge (cheap; polled) |
+
+Phase 5 notes: a chat the buyer opened but never wrote in is not shown to the seller. Unread =
+messages from the other side newer than my read marker. `GET /conversations/{id}` adds
+`latest_offer`, `can_message` (false once the other person deleted their account), and
+`can_offer`. Codes: 409 `own_listing`, 409 `listing_unavailable`, 403 `blocked`, 409 `user_left`.
+The listing detail adds `is_favorited` and `my_conversation_id` for a signed-in viewer.
 
 ### Offers
 | Method | Path | Auth | Notes |
@@ -135,6 +142,9 @@ Body size limits: JSON 64 KB, multipart 64.25 MB. A larger `Content-Length` gets
 | POST | `/offers/{id}/reject` | 🔒 seller | pending → rejected |
 | POST | `/offers/{id}/withdraw` | 🔒 buyer | pending → withdrawn |
 Each transition also writes an `offer`/`system` message in the same DB transaction.
+Codes: 403 `not_buyer` (seller tries to offer), 403 `not_allowed` (wrong side), 409
+`offer_pending`, 409 `offer_not_pending`, 409 `offer_expired`. Week-old offers are marked
+expired lazily by `app.expire_stale_offers` before any offer read or change.
 
 ### Reports and blocks
 | Method | Path | Auth | Notes |

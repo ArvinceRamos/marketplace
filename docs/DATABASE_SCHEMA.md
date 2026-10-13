@@ -180,6 +180,12 @@ erDiagram
 - **Partial unique index:** one `pending` offer per conversation:
   `unique (conversation_id) where status = 'pending'`
 - `expires_at = created_at + 7 days`; expired lazily when read and when the listing leaves `active`.
+  Lazy expiry uses `app.expire_stale_offers(conversation)` (security definer, migration
+  `20261013000200`): users may not set "expired" themselves, so a definer function does it, only
+  for past-due offers in a chat the caller is part of.
+- Fixed in Phase 5: the "other user has left" rule only stops typed messages. Before, an automatic
+  "Offer expired" note failed when the buyer had deleted their account, which blocked the seller
+  from marking the item sold. Regression test in `test_api_social.py`.
 - Transitions enforced in FastAPI **and** in a trigger that rejects illegal changes
   (e.g. `rejected → accepted`). Only the buyer can withdraw; only the seller can accept/reject.
 
@@ -247,7 +253,7 @@ Source: https://supabase.com/docs/guides/database/postgres/row-level-security (c
 ## 7. Deletion and archival rules
 | Event | Effect |
 |---|---|
-| Seller deletes listing | `status = deleted`, `deleted_at` set; images removed from Storage; favorites stay but show "no longer available"; pending offers → expired; chats stay readable |
+| Seller deletes listing | `status = deleted`, `deleted_at` set; images removed from Storage; favorites rows stay but the listing is no longer visible, so it drops out of Saved items; pending offers → expired; chats stay readable |
 | Listing marked sold | pending offers → expired; new offers blocked; chat continues |
 | User deletes account | Auth user deleted → profile cascade → listings (and the chats/offers about them), images, favorites, blocks, own reports deleted. Chats where they were the buyer stay for the seller with `buyer_id`/`sender_id` set null ("Deleted user"). Reports about them keep the row with the target set null. Tested in `test_account_deletion.py` |
 | Admin hides listing (later) | `moderation = hidden`; only owner sees it, with a notice |

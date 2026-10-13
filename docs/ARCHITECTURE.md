@@ -212,7 +212,11 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 
 ## 9. Messaging
 - Messages are rows in Postgres. The open thread polls every ~10 seconds; the inbox polls every
-  ~30 seconds while visible; polling stops when the tab is hidden.
+  ~30 seconds while visible; polling stops when the tab is hidden. Built in Phase 5
+  (`lib/use-polling.ts`): coming back to a tab polls at once only if a full interval has passed,
+  so quick tab switching can't cause bursts. The unread badge polls every 30 seconds.
+- Pages stay mounted (hidden) after navigation (Next.js Cache Components + React Activity).
+  Forms that hold secrets or one-off input reset themselves after submit (login, register, sell).
 - Unread = messages after my `last_read_at` in that conversation.
 - Supabase Realtime (free: 200 concurrent connections, 2M messages/month) is a later upgrade.
   It would need extra RLS work on `realtime.messages`, so it is not in the MVP.

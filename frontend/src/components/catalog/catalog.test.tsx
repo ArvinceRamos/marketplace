@@ -1,5 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+// The heart needs a signed-in session; it is tested on its own.
+vi.mock("@/components/favorite-button", () => ({ FavoriteButton: () => null }));
+
 import type { ListingCard as Card } from "@/lib/catalog-types";
 import { ListingCard } from "./listing-card";
 import { Pagination } from "./pagination";
