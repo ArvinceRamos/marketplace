@@ -6,3 +6,6 @@
 .env.keys
 .env.local
 .env.*.local
+
+# Local JWT private signing key (generate with `npm run db:keys`)
+signing_keys.json

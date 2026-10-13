@@ -5,8 +5,9 @@ Last updated: 2026-10-10
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (git initialized, nothing committed yet).
-- **Exact next step:** Phase 2 (database and auth) when you say yes.
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (first commit f919f9e; Phase 2 not committed yet).
+- **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
+- **Exact next step:** Phase 3 (browsing) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -41,13 +42,15 @@ Last updated: 2026-10-10
 - Checks passed: Ruff + 12 pytest; ESLint, tsc, Vitest, `next build`; Docker image healthy, non-root, docs hidden in production; both apps run and the browser reaches the API (CORS). CI workflow YAML valid; first GitHub run pending.
 
 ### Phase 2 — Database and auth
-- [ ] Migrations: enums, tables, constraints, indexes, triggers (profile creation, offer transitions, limits)
-- [ ] `app` schema, grants, RLS policies, storage buckets + policies
-- [ ] Verify `api_app` role + `SET LOCAL ROLE` approach (and pooler compatibility note)
-- [ ] FastAPI JWT verification (JWKS) + DB session dependency that sets role and claims
-- [ ] Frontend: Supabase SSR client, register/login/logout, protected routes, profile edit
-- [ ] Tests: allowed + denied for every table/action; invalid/missing/expired tokens
-- Checks: `supabase db reset` clean; pytest RLS suite green
+- [x] Migrations: enums, tables, constraints, indexes, guard triggers (profile creation + 18+ rule, listing status, offers, read markers, limits)
+- [x] `app` schema (not exposed), revoke-then-grant, RLS on every table, storage buckets + owner-folder policies
+- [x] `api_app` role (NOINHERIT, SET-only grants) + per-request `SET LOCAL ROLE` and JWT claims
+- [x] Local ES256 signing key (`npm run db:keys`); FastAPI verifies tokens via JWKS (HS256 rejected)
+- [x] API: `/me` (GET, PATCH), `/health/ready`; DB errors mapped to safe 403/409/422
+- [x] Frontend: `@supabase/ssr`, `proxy.ts` session refresh + route guard, register (18+), login, logout, profile view/edit
+- [x] Tests: 29 unit + 72 integration (every table: allowed and denied; bad/expired/forged tokens; storage folders); frontend 15
+- Checks passed: Ruff; pytest 101/101 on full and CI-like reduced stack; ESLint; tsc; Vitest 15/15; `next build`; browser run-through (guard, 18+ block, register, profile save, friendly errors, logout, mobile width)
+- Open: hosted pooler + `api_app` login to verify at deploy; Google sign-in not configured yet (needs a Google OAuth client)
 
 ### Phase 3 — Browsing
 - [ ] Seed: categories, cities, fake users, ~60 listings, generated placeholder images
@@ -85,3 +88,5 @@ Last updated: 2026-10-10
 |---|---|---|
 | 2026-10-10 | 0 | Research + docs written. Carousell site and help center read via browser (direct fetch was blocked with 403). |
 | 2026-10-10 | 1 | Foundation done. Ports moved to 3100 / 544xx to run beside RvFit and avoid Windows-reserved ranges. 5 high npm audit warnings are dev-only (`braces` via lint tooling); production deps: 0. |
+| 2026-10-10 | 2 | Database + auth done. Fixed during the phase: guard triggers needed caller rights; username lowercased before pattern check; outsider offers now fail as "not allowed"; dark-mode contrast (site is light-only until Phase 3). Supabase JS warns Node 20 is deprecated; plan a move to Node 22. |
+| 2026-10-13 | 2.5 | Design system: tokens + primitives in `globals.css`, Inter font, deep-indigo accent, Button/ButtonLink/TextLink/layout primitives; existing pages migrated. Rules in `docs/DESIGN_SYSTEM.md`. Checks: ESLint, tsc, Vitest 15/15, `next build`, browser check desktop + 375px. |

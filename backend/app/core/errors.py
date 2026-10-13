@@ -5,6 +5,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("app.errors")
@@ -56,6 +57,43 @@ async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResp
     )
 
 
+def sqlstate(exc: DBAPIError) -> str | None:
+    """Postgres error code (e.g. "23505") from a SQLAlchemy-wrapped driver error."""
+    orig = exc.orig
+    for source in (orig, getattr(orig, "__cause__", None)):
+        code = getattr(source, "sqlstate", None) or getattr(source, "pgcode", None)
+        if code:
+            return str(code)
+    return None
+
+
+# Our own guard triggers raise check_violation (23514) with plain-language messages.
+def _trigger_message(exc: DBAPIError) -> str | None:
+    text = str(getattr(exc.orig, "__cause__", None) or exc.orig)
+    if "violates" in text or "constraint" in text:
+        return None  # a raw constraint name; do not expose
+    first_line = (text.splitlines() or [""])[0]
+    return first_line.split(": ", 1)[-1].strip() or None
+
+
+async def _db_error(request: Request, exc: DBAPIError) -> JSONResponse:
+    code = sqlstate(exc)
+    if code == "23505":
+        return JSONResponse(error_body("already_exists", "That already exists."), status_code=409)
+    if code == "23514":
+        message = _trigger_message(exc) or "Some values are not allowed."
+        return JSONResponse(error_body("not_allowed", message), status_code=409)
+    if code == "23503":
+        return JSONResponse(
+            error_body("invalid_reference", "A referenced item does not exist."), status_code=422
+        )
+    if code == "42501":
+        return JSONResponse(error_body("forbidden", "You can't do that."), status_code=403)
+    if code in ("22P02", "22001", "22003"):
+        return JSONResponse(error_body("invalid_value", "A value is invalid."), status_code=422)
+    return await _unhandled_error(request, exc)
+
+
 async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
     # Details go to the log only, never to the client.
     logger.exception("Unhandled error (request_id=%s)", getattr(request.state, "request_id", "-"))
@@ -68,4 +106,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, _app_error)
     app.add_exception_handler(StarletteHTTPException, _http_error)
     app.add_exception_handler(RequestValidationError, _validation_error)
+    app.add_exception_handler(DBAPIError, _db_error)
     app.add_exception_handler(Exception, _unhandled_error)

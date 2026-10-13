@@ -4,7 +4,7 @@ An original, free-to-run classifieds marketplace for the Philippines. People lis
 secondhand items, chat, make offers, and arrange the deal themselves. It is inspired by the
 public features of Carousell PH, but it uses none of Carousell's code, branding, or content.
 
-Status: **Phase 1 (foundation)** — both apps run locally; no marketplace features yet.
+Status: **Phase 2 (database and auth)** — schema, RLS, sign-up/login, and profile editing work locally.
 
 Stack: Next.js 16 (App Router, TypeScript, Tailwind) · FastAPI (Python 3.13, Pydantic) ·
 Supabase (Postgres, Auth, Storage, RLS) · Docker (API only) · GitHub Actions.
@@ -42,6 +42,10 @@ npm --prefix frontend install
 ```bash
 uv sync --directory backend
 ```
+Create the local JWT signing key (git-ignored; local only):
+```bash
+npm run db:keys
+```
 Copy the example env files (they contain placeholders only):
 ```bash
 cp frontend/.env.example frontend/.env.local
@@ -49,6 +53,8 @@ cp frontend/.env.example frontend/.env.local
 ```bash
 cp backend/.env.example backend/.env
 ```
+In `backend/.env`, set the `DATABASE_URL` password to the local-only value in `supabase/seed.sql`.
+In `frontend/.env.local`, set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from `npm run db:status`.
 
 ## Run locally
 Start Docker Desktop first, then the local Supabase stack (first run downloads images, ~several minutes):
@@ -82,6 +88,9 @@ uv run --directory backend ruff check .
 ```bash
 uv run --directory backend pytest
 ```
+With the local stack running, this includes ~70 integration tests (real users, real tokens, RLS).
+They skip if Supabase is not running; set `REQUIRE_INTEGRATION=1` to make that a failure (CI does).
+They refuse to run against anything but localhost.
 Frontend:
 ```bash
 npm --prefix frontend run lint
@@ -107,8 +116,12 @@ Then open http://localhost:8001/api/v1/health. The image runs in production mode
 CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull request. It needs no secrets.
 
 ## Database migrations and seed
-Added in Phase 2 (`supabase/migrations/`) and Phase 3 (`supabase/seed.sql`).
-`npm run db:reset` re-creates the local database from migrations + seed. It never touches hosted projects.
+SQL migrations live in `supabase/migrations/` (tables, RLS, storage). `supabase/seed.sql` holds local-only data.
+Re-create the local database from scratch (deletes local data):
+```bash
+npm run db:reset
+```
+New migration: add a timestamped `.sql` file to `supabase/migrations/`, then reset. Never edit a migration that has been applied to a hosted project.
 
 ## Troubleshooting
 | Problem | Fix |
@@ -119,3 +132,6 @@ Added in Phase 2 (`supabase/migrations/`) and Phase 3 (`supabase/seed.sql`).
 | Port 3100 or 8000 in use | Stop the other process, or change the port in `frontend/package.json` / the uvicorn command (update `CORS_ORIGINS` too) |
 | Browser shows CORS error calling the API | `CORS_ORIGINS` in `backend/.env` must exactly match the frontend origin, e.g. `http://localhost:3100` |
 | First Vitest run times out | Run it again; the first run warms up a cache |
+| `failed to decode signing keys` | Run `npm run db:keys -- --force`, then `npm run db:start` |
+| `/me` returns 503 `db_unavailable` | `DATABASE_URL` is missing in `backend/.env`, or Supabase is not running |
+| Pages show "Missing NEXT_PUBLIC_…" | Create `frontend/.env.local` from `.env.example`, then restart `npm run dev` |

@@ -1,6 +1,6 @@
 # Database Schema
 
-Last updated: 2026-10-10 · Status: Phase 0 design; built in Phase 2 as Supabase SQL migrations
+Last updated: 2026-10-10 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`. Deals and reviews are still design only.
 
 All app tables live in schema `app` (not exposed by the Supabase Data API). RLS is enabled on
 every table. IDs are UUIDs (`gen_random_uuid()`) unless noted. Every table has `created_at`;
@@ -126,7 +126,9 @@ erDiagram
 - `id uuid PK references auth.users(id) on delete cascade`
 - `username citext unique not null`, check `^[a-z0-9_.]{3,30}$`
 - `display_name text` (1–50), `bio text` (≤ 500), `avatar_path text`, `city_id smallint references locations`
+- `age_confirmed_at timestamptz` — set at sign-up from the 18+ checkbox; users cannot change it.
 - Created by a trigger on `auth.users` insert (security definer, `search_path = ''`), with a random username.
+  Email sign-ups without the 18+ confirmation are rejected by that trigger.
 
 ### locations
 - `id smallint PK`, `region text`, `province text`, `city text`, `slug text unique`

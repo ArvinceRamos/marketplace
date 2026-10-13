@@ -94,8 +94,9 @@ sequenceDiagram
 Guest requests have no token. FastAPI runs them as the `anon` role, which can only read public data.
 
 > Note: Supabase recommends asymmetric signing keys (ES256) and calls the old shared HS256 secret
-> "not recommended". The new project must use asymmetric keys. The local CLI stack's signing
-> mode is checked in Phase 2.
+> "not recommended". The new project must use asymmetric keys. Locally, `npm run db:keys`
+> creates a git-ignored ES256 key (`supabase/signing_keys.json`), so local tokens match production.
+> The API rejects HS256 tokens outright.
 > Source: https://supabase.com/docs/guides/auth/signing-keys · https://supabase.com/docs/guides/auth/jwts (checked 2026-10-10)
 
 ## 4. How FastAPI and RLS work together
@@ -119,14 +120,19 @@ have BYPASSRLS). One missing `WHERE owner_id = ...` would leak data.
 - The secret (service-role) key is used in exactly one place: deleting the Auth user during
   account deletion (Auth admin API). Documented in `SECURITY_PLAN.md`.
 
-**To verify in Phase 2:** that the Supavisor pooler accepts a custom role like `api_app`; if not,
-connect as `postgres` but immediately `SET LOCAL ROLE` in every transaction and add a test that
-fails if any query runs without a role switch.
+**Verified in Phase 2 (local):** `api_app` is created with `NOINHERIT` and role grants
+`WITH INHERIT FALSE, SET TRUE`, so it has no table access until it runs `SET LOCAL ROLE`. A test
+proves a query without the switch fails. **Still to verify at deploy time:** that the hosted
+Supavisor pooler (session mode) accepts the custom `api_app` login.
 
 Source: https://supabase.com/docs/guides/database/postgres/row-level-security (checked 2026-10-10)
 
 ## 5. Database access and migrations
-- **Driver:** SQLAlchemy 2 (async) + `asyncpg` or `psycopg` 3 — chosen in Phase 1 after a quick spike.
+- **Driver:** SQLAlchemy 2 (async) + `asyncpg`. Chosen over psycopg 3 because psycopg's async mode
+  does not work with the default Windows event loop. Raw SQL via `text()` for now; easy to read
+  next to the RLS policies.
+- **Transactions:** one per request, opened by the `Db`/`UserDb` dependency with
+  `Depends(scope="function")`, so the commit finishes **before** the response is sent.
 - **Migrations:** Supabase CLI SQL files in `supabase/migrations/` are the **single source of truth**.
   RLS policies, storage policies, triggers, and grants are SQL anyway. No Alembic, so there are
   not two migration systems that can disagree.
@@ -240,3 +246,5 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 | D6 | Polling before Realtime | Simpler, fewer moving parts |
 | D7 | Prices as integer centavos | No floating-point errors |
 | D8 | `uv` for Python deps with lockfile | Fast, reproducible, free (MIT/Apache-2.0) |
+| D9 | `api_app` role with NOINHERIT + SET-only role grants | A missed role switch fails loudly instead of skipping RLS |
+| D10 | Guard triggers for state rules (status, offers, read markers) | Rules hold even if API code has a bug; tested directly in SQL |

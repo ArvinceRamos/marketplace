@@ -9,7 +9,8 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:status": "supabase status",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "db:keys": "node scripts/gen-signing-key.mjs"
   },
   "devDependencies": {
     "supabase": "^2.120.0"

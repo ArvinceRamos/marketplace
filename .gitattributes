@@ -1,0 +1,6 @@
+# Keep LF in the repo and working tree (Docker, shell, CI run on Linux).
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.jpg binary
+*.webp binary

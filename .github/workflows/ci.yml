@@ -16,24 +16,40 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: backend
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.12.24"
           enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Install dependencies (locked)
-        run: uv sync --locked
+        run: |
+          uv sync --locked --directory backend
+          npm ci
       - name: Ruff format check
-        run: uv run ruff format --check .
+        run: uv run --directory backend ruff format --check .
       - name: Ruff lint
-        run: uv run ruff check .
-      - name: Tests
-        run: uv run pytest
+        run: uv run --directory backend ruff check .
+      # A throwaway local Supabase on the runner: migrations + seed, a fresh
+      # signing key, and the CLI's local demo keys. No real secrets involved.
+      - name: Start local Supabase
+        run: |
+          npm run db:keys
+          npx supabase start -x studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
+      - name: Tests (unit + integration)
+        env:
+          REQUIRE_INTEGRATION: "1"
+        run: uv run --directory backend pytest
+      - name: Stop Supabase
+        if: always()
+        run: npx supabase stop --no-backup
 
   frontend:
     runs-on: ubuntu-latest

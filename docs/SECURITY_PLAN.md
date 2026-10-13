@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-10 · Status: Phase 0 design
+Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls implemented and tested
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -40,6 +40,19 @@ Last updated: 2026-10-10 · Status: Phase 0 design
 | Secret key (`sb_secret_…`) | Backend env only | **Only use:** delete an Auth user during account deletion. Never in frontend, CI, or logs |
 | `DATABASE_URL` for `api_app` | Backend env only | Role without BYPASSRLS |
 | Local CLI keys | Local `.env`, CI | Printed by `supabase start`; only valid for the local stack |
+
+## 3b. Phase 2 notes (implemented and tested)
+- **18+ rule is enforced in the database.** The `auth.users` insert trigger rejects email sign-ups
+  without `age_confirmed: true` in the sign-up metadata. The frontend checkbox is only the UI for it.
+  OAuth sign-ups (Google, later) will need a first-login confirmation step instead.
+- **Local-only credentials.** `api_app_local_dev_only` (in `seed.sql`) and the CLI demo keys only
+  work on the local stack. Hosted projects get a separate strong `api_app` password, set by hand.
+- **Signing key file.** `supabase/signing_keys.json` contains a private key and is git-ignored.
+- **Deleted users.** An access token stays valid until it expires (max 1 hour) after an account is
+  deleted. RLS still protects data: the profile is gone, so `/me` returns 404 and ownership checks fail.
+- **Guard triggers.** Triggers that tell end users apart from internal updates run with caller
+  rights on purpose; inside `security definer` functions `current_user` is always the owner.
+- **Bad tokens are rejected, not ignored**, even on public routes, so a broken session is visible.
 
 ## 4. Account deletion (PH Data Privacy Act)
 1. User types their username to confirm.

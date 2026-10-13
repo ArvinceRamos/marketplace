@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "FastAPI backend for the marketplace"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "asyncpg>=0.30",
     "fastapi>=0.143,<0.144",
     "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.10",
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
     "uvicorn[standard]>=0.30",
 ]
 
@@ -32,3 +35,4 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["integration: needs the local Supabase stack (npm run db:start)"]
