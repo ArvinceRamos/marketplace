@@ -105,7 +105,12 @@ jobs:
         run: docker build -t marketplace-api:ci backend
       - name: Health check
         run: |
-          docker run -d --name api -p 8000:8000 marketplace-api:ci
+          # Production refuses the dev webhook secrets; these random values exist
+          # only for this throwaway container (test-mode payments, no real money).
+          docker run -d --name api -p 8000:8000 \
+            -e MOCKPAY_WEBHOOK_SECRET="$(openssl rand -hex 32)" \
+            -e MOCKCOURIER_WEBHOOK_SECRET="$(openssl rand -hex 32)" \
+            marketplace-api:ci
           for i in $(seq 1 15); do
             curl -fsS http://localhost:8000/api/v1/health && exit 0
             sleep 2

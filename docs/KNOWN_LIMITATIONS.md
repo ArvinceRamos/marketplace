@@ -1,13 +1,14 @@
 # Known Bugs and Limitations
 
-Last updated: 2026-10-13 (Phase 8). Collected from every phase's "Not done" notes and the Phase 8
+Last updated: 2026-10-13 (Phase 13; Phase 8 list kept and updated). Collected from every phase's "Not done" notes and the Phase 8
 checks. Nothing here is hidden from users that they would need to know; items marked **before
 launch** should be fixed or decided before the site is shared publicly.
 
 ## 1. Before launch (decide or fix)
 | # | Item | Why it matters | Suggested fix |
 |---|---|---|---|
-| 1 | **No moderation tool.** Reports are stored, but nobody can act on them inside the app | Prohibited items and scammers stay up until someone edits the database by hand | Build the planned admin role (`app_metadata.role = admin`) and a small reports queue; until then, check `app.reports` weekly with SQL |
+| 1 | ~~No moderation tool~~ **Built in Phase 12** (`/admin`). Still needed: someone to actually check the queue | Reports and escalated disputes wait for a person | Give one trusted account the role (`npm run db:admin` locally; SQL on the hosted project) and check `/admin` daily |
+| 7 | **Checkout is test mode only.** MockPay and MockCourier are simulated | Real money needs a licensed PH payment partner (business registration, fees, BSP rules); the ₱0 rule | Keep the "Test mode" labels; a real provider would be a second class behind `app/integrations/` plus its webhook secret |
 | 2 | **No contact address** on `/privacy` for privacy requests and data copies | RA 10173 rights (access, copy, objection) need a way to ask | Add a contact email you control |
 | 3 | **Next.js 16.4.0** is pinned; a security release was announced for 2026-10-14 | Known framework issues stay open until upgraded | Upgrade to the patched 16.4.x when out; rerun all checks |
 | 4 | **Not deployed and CI never ran on GitHub** (no repository yet) | Hosted settings are untested: pooler connection, `api_app` password, CORS origin, CSP origins, `TRUSTED_PROXY_HOPS=1` on Render | Follow the deployment plan after "Deploy now."; first run CI on a private repo |
@@ -32,8 +33,8 @@ launch** should be fixed or decided before the site is shared publicly.
 - **Search** uses Postgres `simple` text search plus partial title match: no Filipino/English
   stemming or typo tolerance.
 - **No self-service data export** (copy of your data); only view, edit, and delete.
-- **Payments and couriers are labels only**: no escrow, payment links, or waybills (by design:
-  business registration, fees, and BSP rules; see Phase 7 notes).
+- **Payments and couriers on listings are labels only**; the Buy button's checkout is a
+  **simulation** (Phases 10–12): no real payment, payout, waybill, or courier.
 - **Sizes**: fixed lists (clothing letter sizes, EU shoe sizes, kids' ages); no "my sizes"
   preference; the size filter shows only on a subcategory, not on "All Fashion".
 - **Following feed** shows the 48 newest items, no paging.
@@ -53,3 +54,25 @@ launch** should be fixed or decided before the site is shared publicly.
 - **Vitest on this PC** can time out starting workers when the machine is busy; use
   `npx vitest run --maxWorkers=2`.
 - **Demo photos** are generated shapes (a shirt for every Fashion item, including shoes).
+
+## 4. Test-mode checkout (Phases 10–12)
+- **Timers are lazy**: unpaid orders (30 min), ship-by (5 days), meet-by (7 days), auto-complete
+  (2 days after delivery), and the seller's 48 hours on a dispute apply when someone opens the
+  order, the order lists, the wallet, the listing, or the moderator queue. Nothing runs in the
+  background, so an abandoned order can stay "open" in the database until then.
+- **Reserved listings are hidden from search** (only `active` items show); the listing page shows
+  "Reserved".
+- **No returns, partial refunds, or counter-offers in disputes**: a refund is the full total and the
+  buyer keeps the item (the listing is marked sold; the seller can "Undo sold").
+- **One item per order**; no bundles, no shipping address (couriers are simulated), no delivery
+  fee by distance (demo flat rates).
+- **Cash and COD orders have no buyer protection** (no dispute), like the real thing.
+- **Restricted users can't message**, even in chats about their open orders; they can still finish
+  orders (ship, hand over, confirm, review).
+- **The admin role reaches the token on the next sign-in** (or token refresh, up to 1 hour).
+- **Unhandled server errors (500) have no CORS headers**, so the browser shows "Can't reach the
+  server" instead of the generic message (SECURITY_PLAN §3c). Found during Phase 12 testing.
+- **Test runs leave anonymized orders** in the local database (their users are deleted, so the
+  orders keep `null` buyer/seller). `npm run db:reset` clears them.
+- **The audit log keeps entries** after the moderator deletes their account (admin shown as
+  "Deleted user").

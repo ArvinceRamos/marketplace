@@ -210,6 +210,11 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 | `/following` | signed in | Phase 7: sellers you follow + their new listings |
 | `/profile`, `/profile/edit`, `/settings` | signed in | |
 | `/safety`, `/privacy`, `/terms` | public | safety guidance, privacy notice |
+| `/checkout/[listingId]` | signed in | Phase 10: test-mode checkout; `?offer=` uses an accepted offer |
+| `/pay/mock/[ref]` | signed in, buyer | Phase 10: MockPay page (simulate success / failure) |
+| `/orders`, `/orders/[id]` | signed in, participant | Phases 10–12: orders, tracking, handover, reviews, disputes, test-mode tools |
+| `/wallet` | signed in | Phase 10: balance, history, "Demo bank" withdrawal |
+| `/admin`, `/admin/reports`, `/admin/disputes`, `/admin/users`, `/admin/log` | signed in; API needs admin role | Phase 12: moderation |
 
 - Route protection runs on the server (Next.js proxy/middleware or layout check). The API checks
   again; the frontend check is only for user experience.

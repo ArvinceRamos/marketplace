@@ -19,7 +19,8 @@ Last updated: 2026-10-13
 - **Phase 10: done (2026-10-13).** Test-mode checkout: orders, MockPay + signed webhooks, ledger, wallet, reserved listings.
 - **Phase 11: done (2026-10-13).** Shipping + MockCourier tracking, handover code, COD, auto-complete, demo tools, double-blind reviews.
 - **Phase 12: done (2026-10-13).** Disputes, admin role, reports queue, hide listings, restrict users, audit log, `/admin`.
-- **Exact next step:** Phase 13 — release checks and portfolio polish (migration replay, full suites, `next build`, Lighthouse, security review, demo orders, README test-mode guide, KNOWN_LIMITATIONS). Deployment only after you say "Deploy now."
+- **Phase 13: done (2026-10-13).** Release checks, demo orders in every state, README test-mode guide, limitations, security review.
+- **Exact next step:** your call. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release, GitHub repo + first CI run, someone to watch `/admin`). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -166,8 +167,12 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 - Fixed during phase: optional text fields (`note`, `comment`, `details`) returned 500 when sent as `null` (Pydantic constraint on `str | None`); now constrained on `str` with a regression test. The review form sends `null` for an empty comment, so this also affected Phase 11 reviews without a comment.
 - Note: an unhandled 500 has no CORS headers, so the browser shows "Can't reach the server" instead of the generic error (known since Phase 8, SECURITY_PLAN §3c)
 
-### Phase 13 — Release and portfolio polish
-- [ ] Full suites, migration replay, Lighthouse, security review, demo orders in every state, README test-mode guide, KNOWN_LIMITATIONS update
+### Phase 13 — Release and portfolio polish (done 2026-10-13)
+- [x] Demo data: `scripts/demo_orders.py` adds 12 orders in every state (unpaid, paid to ship, paid meetup, in transit, delivered, completed + reviews, cash meetup + reviews, cancelled + refunded, contested dispute, seller refund, COD, open dispute), 2 open reports, and `demo_moderator@demo.test`; all through the same database functions; re-runs settle old demo orders and balances first
+- [x] Docs: README (status, test-mode guide, troubleshooting), KNOWN_LIMITATIONS (§1 moderation built, #7 test mode, §4 checkout limits), ARCHITECTURE routes, SECURITY_PLAN (T10, Phases 10–13 review), DATABASE_SCHEMA and TRANSACTIONS_DESIGN status
+- [x] CI: the Docker job now passes random webhook secrets (production refuses to start without them)
+- Checks passed: `supabase db reset` replays all 10 migrations + seed; demo data loads twice in a row; Ruff; pytest 235/235 (one test assumed no public reviews existed and failed with demo data loaded; scoped to its own order); ESLint; typecheck; Vitest 96/96; `next build` (all new routes build; ran beside the dev server, which kept working); Docker image: exits without secrets, healthy with them, runs as `appuser`, demo routes and docs 404; Lighthouse 13.5 (production build, mobile) accessibility 100 and best practices 100 on the seller page (rating + reviews) and login; signed-in pages checked in the browser (labels, names, headings, duplicate IDs, 375 px no sideways scroll) on orders (meetup with code, disputed), wallet, admin disputes/reports/log; moderator released an escalated dispute through the UI (note required, confirm dialog, audit entry); `npm audit --omit=dev` 0; secret grep clean; no new dependencies (pip-audit not rerun)
+- Fixed during phase: idle confirm dialog on the order page had an empty button label; demo dispute text was item-specific
 
 ### Later
 - Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).
@@ -193,3 +198,4 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 | 2026-10-13 | 10 | Simulated payments core. No new dependencies (hmac/hashlib/secrets from the standard library; pgcrypto already installed). |
 | 2026-10-13 | 11 | Fulfilment and reviews. No new dependencies. Found and fixed the conditional confirm dialog closing itself. |
 | 2026-10-13 | 12 | Disputes and admin moderation. No new dependencies. Found and fixed 500s on `null` optional text. A local demo user (homebody_liza) has the moderator role for manual checks. |
+| 2026-10-13 | 13 | Release checks and polish. No new dependencies. Lighthouse run once via `npx` on a temporary `next start` (port 3200, stopped afterwards). Demo data reloaded; `demo_moderator@demo.test` added. |

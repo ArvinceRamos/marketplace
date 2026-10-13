@@ -429,9 +429,9 @@ export function OrderView({ id }: { id: string }) {
       {/* Always mounted (like other pages): the dialog closes itself when unmounted. */}
       <ConfirmDialog
         open={Boolean(confirmText)}
-        title={confirmText?.title ?? ""}
+        title={confirmText?.title ?? "Confirm"}
         body={confirmText?.body ?? ""}
-        action={confirmText?.action ?? ""}
+        action={confirmText?.action ?? "Confirm"}
         variant={confirmText?.variant}
         pending={busy !== null}
         onConfirm={() => confirming && runSimple(confirming)}

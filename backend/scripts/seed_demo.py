@@ -24,6 +24,7 @@ import httpx2
 from PIL import Image, ImageDraw
 
 from scripts.demo_data import LISTINGS, SELLERS
+from scripts.demo_orders import seed_orders, settle_demo_money
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ADMIN_DSN = os.environ.get(
@@ -135,7 +136,8 @@ async def main() -> None:
     http = httpx2.Client(base_url=api_url, headers=admin_headers, timeout=30)
     try:
         await _remove_previous(db, http)
-        seller_ids = await _create_sellers(db, http)
+        password = os.environ.get("DEMO_PASSWORD") or secrets.token_urlsafe(10)
+        seller_ids = await _create_sellers(db, http, password)
         parents = {
             r["slug"]: r["parent_slug"]
             for r in await db.fetch(
@@ -148,6 +150,7 @@ async def main() -> None:
             await _create_listing(db, http, seller_ids, parents, n, row)
             count += 1
         print(f"Created {len(seller_ids)} demo sellers and {count} listings.")
+        await seed_orders(db, http, seller_ids, password)
         print(f"Demo sellers sign in with <username>@{DEMO_DOMAIN} and password from the console.")
     finally:
         http.close()
@@ -159,6 +162,7 @@ async def _remove_previous(db: asyncpg.Connection, http: httpx2.Client) -> None:
     if not users:
         return
     ids = [u["id"] for u in users]
+    await settle_demo_money(db, ids)
     paths = await db.fetch(
         "select i.full_path, i.thumb_path from app.listing_images i "
         "join app.listings l on l.id = i.listing_id where l.seller_id = any($1::uuid[])",
@@ -176,8 +180,9 @@ async def _remove_previous(db: asyncpg.Connection, http: httpx2.Client) -> None:
     print(f"Removed {len(ids)} previous demo users.")
 
 
-async def _create_sellers(db: asyncpg.Connection, http: httpx2.Client) -> list[uuid.UUID]:
-    password = os.environ.get("DEMO_PASSWORD") or secrets.token_urlsafe(10)
+async def _create_sellers(
+    db: asyncpg.Connection, http: httpx2.Client, password: str
+) -> list[uuid.UUID]:
     ids = []
     for username, display_name, city, bio in SELLERS:
         res = http.post(
@@ -210,7 +215,7 @@ async def _create_sellers(db: asyncpg.Connection, http: httpx2.Client) -> list[u
                 30 + len(ids) * 37,
             )
         ids.append(uid)
-    print(f"Demo seller password (local only): {password}")
+    print(f"Demo password for every demo account (local only): {password}")
     return ids
 
 

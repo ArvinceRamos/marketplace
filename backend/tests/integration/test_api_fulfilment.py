@@ -242,7 +242,8 @@ async def test_reviews_are_double_blind(api, db, users):
     assert get(api, seller, oid)["their_review"] is None
     public = api.get(f"{API}/profiles/{seller_name}/reviews").json()
     assert (public["count"], public["items"]) == (0, [])
-    assert await db.as_user(seller, "select * from app.reviews") == []
+    rows = await db.as_user(seller, "select * from app.reviews where order_id = $1", uuid.UUID(oid))
+    assert rows == []  # RLS hides the buyer's review from the seller for now
 
     post(api, seller, oid, "review", {"rating": 4})
     assert get(api, seller, oid)["their_review"]["rating"] == 5

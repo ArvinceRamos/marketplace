@@ -1,6 +1,6 @@
 # Database Schema
 
-Last updated: 2026-10-13 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`; later phases added migrations up to `20261013000300` (Phase 7: sizes, deal options, follows). Phases 10–12 add orders, payments, ledger, shipments, reviews, disputes, and admin (§9; design in `TRANSACTIONS_DESIGN.md`).
+Last updated: 2026-10-13 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`; later phases added migrations up to `20261013000300` (Phase 7: sizes, deal options, follows). Phases 10–12 add orders, payments, ledger, shipments, reviews, disputes, and admin (§9; design in `TRANSACTIONS_DESIGN.md`), built in migrations `20261013000400`–`20261013000700`.
 
 All app tables live in schema `app` (not exposed by the Supabase Data API). RLS is enabled on
 every table. IDs are UUIDs (`gen_random_uuid()`) unless noted. Every table has `created_at`;

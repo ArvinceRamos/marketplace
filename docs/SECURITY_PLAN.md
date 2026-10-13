@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-13 · Status: Phase 8 — release checks done (not deployed)
+Last updated: 2026-10-13 · Status: Phase 13 — release checks done (not deployed)
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -162,6 +162,25 @@ copies, which have no self-service export yet).
   5 high dev-only in `braces` via ESLint tooling), `pip-audit` on the locked backend
   requirements (0 known); secrets grep of tracked files and full git history (clean); CI gains a
   `secrets` job; API security headers. Remaining items: docs/KNOWN_LIMITATIONS.md.
+
+- Phases 10–13 (2026-10-13): simulated payments, fulfilment, disputes, admin (T22–T32). Tests:
+  forged / unsigned / stale / wrong-amount / duplicate / backward webhooks; amounts never in
+  bodies; reserve + one open order per listing; ledger zero-sum and append-only even for the
+  superuser; no double release or refund; handover code buyer-only with a 5-try lock; demo tools
+  404 when off and fast-forward only for participants; admin role only from signed
+  `app_metadata` (a `user_metadata` role is ignored) and checked again in every admin function;
+  restricted users blocked by RLS and functions; account deletion waits for orders and balances.
+  Security review by hand (no git remote for `/security-review`) on `git diff e9d92b8`:
+  database sweep — RLS on every `app` table; every `security definer` function pins
+  `search_path`; users have no insert/update/delete grants on orders, payments, ledger,
+  shipments, disputes, admin log; only `app_integrations` can run the webhook and fast-forward
+  functions; functions granted to `anon` only read public data or apply due timers. API — caller
+  IDs only from the token; SQL bound parameters (f-strings join fixed fragments only); webhook
+  routes rate limited per IP and verify before parsing; MockPay never collects card or bank data.
+  Docker: `ENVIRONMENT=production` exits without real webhook secrets; demo routes and docs 404.
+  **Found and fixed:** `null` in optional text fields caused 500s (Phase 12). **Accepted:** 500s
+  carry no CORS headers; a trigger function from Phase 4 is executable by `anon` (Postgres refuses
+  to run trigger functions outside triggers); timers are lazy.
 
 ## 7. Content Security Policy (Phase 6b)
 Static policy in a header, no nonces (decision 2026-10-13): nonces force every page to render

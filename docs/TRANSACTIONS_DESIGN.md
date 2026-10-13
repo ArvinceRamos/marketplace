@@ -1,6 +1,8 @@
 # Transactions Design (orders, simulated payments, fulfilment, disputes)
 
-Last updated: 2026-10-13 · Status: Phase 9 design. Built in Phases 10–12.
+Last updated: 2026-10-13 · Status: built in Phases 10–12 (migrations `20261013000400`–`700`).
+Differences from the first design: a dispute refund marks the item **sold** (the buyer keeps it;
+no returns), and errors from the money functions use SQLSTATE `MKnnn` with a hint (mapped by the API).
 Research behind it: `docs/research/TRANSACTIONS_RESEARCH.md`.
 
 > **Test mode only.** Every payment, payout, shipping label, and tracking update in this app is

@@ -4,7 +4,9 @@ An original, free-to-run classifieds marketplace for the Philippines. People lis
 secondhand items, chat, make offers, and arrange the deal themselves. It is inspired by the
 public features of Carousell PH, but it uses none of Carousell's code, branding, or content.
 
-Status: **Phase 3 (browsing)** — homepage, search with filters, categories, listing and seller pages work locally with demo data.
+Status: **Phases 1–13 done locally** — browsing, selling, chat and offers, safety tools, and a
+**test-mode checkout** (simulated payments, shipping, disputes, wallet) with a moderator area.
+Not deployed. Nothing in this app moves real money.
 
 Stack: Next.js 16 (App Router, TypeScript, Tailwind) · FastAPI (Python 3.13, Pydantic) ·
 Supabase (Postgres, Auth, Storage, RLS) · Docker (API only) · GitHub Actions.
@@ -131,7 +133,39 @@ placeholder photos (simple drawn shapes, no real product photos), run after a re
 npm run db:demo
 ```
 It only runs against localhost and can be re-run (it replaces the previous demo data). Demo sellers
-log in as `<username>@demo.test`; the script prints their local-only password.
+log in as `<username>@demo.test`; the script prints their local-only password. It also creates
+12 demo orders in every state (unpaid, paid, shipped, delivered, completed with reviews, cancelled,
+disputed, refunded, COD), 2 open reports, and a moderator: `demo_moderator@demo.test` (same password).
+
+## Test-mode checkout (simulated payments)
+Design: [Transactions design](docs/TRANSACTIONS_DESIGN.md) · research:
+[Vinted and Carousell](docs/research/TRANSACTIONS_RESEARCH.md).
+
+**Everything is simulated.** MockPay stands in for a payment provider and never asks for card or
+bank details; MockCourier stands in for a courier; "Demo bank" withdrawals pay nothing out. Real
+escrow in the Philippines needs a licensed payment partner (BSP rules), which is out of scope.
+
+Try it (after `npm run db:demo`, signed in as a demo seller):
+1. Open any listing → **Buy** → choose meetup or delivery, and protected payment (MockPay), cash, or
+   COD. The server prices everything: item, shipping (demo flat rates), and the buyer fee (₱15 + 5%,
+   online only). Sellers pay nothing.
+2. MockPay: press **Simulate successful payment** (or failure). It sends a signed webhook to the API,
+   exactly like a real provider would.
+3. Seller, in **Account → Orders → Selling**: **Mark as shipped** (fake `DEMO-…` waybill). Use
+   **Test-mode tools → Advance tracking** to move the parcel, and **Skip ahead** to make a deadline
+   pass now (auto-cancel, auto-release, dispute escalation) instead of waiting days.
+4. Buyer: **Everything is OK** releases the money, or **Report a problem** holds it (dispute).
+   Meetups: the buyer shows a 6-digit **handover code**; the seller enters it to complete.
+5. Both sides review (hidden until both review or 14 days pass). Money lands in **Account →
+   Wallet**; withdraw to "Demo bank".
+6. Moderator (`demo_moderator@demo.test`): **Account → Moderation** for reports (hide a listing,
+   restrict an account), disputes (refund the buyer or release to the seller, with a note), users,
+   and the audit log. Give another local account the role with
+   `npm run db:admin -- someone@demo.test` (`--remove` to take it away), then sign in again.
+
+Settings (`backend/.env`): `DEMO_TOOLS_ENABLED` (default on locally, off in production unless set
+to `true`), `MOCKPAY_WEBHOOK_SECRET`, `MOCKCOURIER_WEBHOOK_SECRET` (dev defaults locally;
+`ENVIRONMENT=production` refuses to start without real random values).
 
 ## Troubleshooting
 | Problem | Fix |
@@ -143,7 +177,10 @@ log in as `<username>@demo.test`; the script prints their local-only password.
 | Browser shows CORS error calling the API | `CORS_ORIGINS` in `backend/.env` must exactly match the frontend origin, e.g. `http://localhost:3100` |
 | First Vitest run times out | Run it again; the first run warms up a cache. If workers keep timing out (busy PC), use `npx vitest run --maxWorkers=2` in `frontend/` |
 | `Cannot find name 'PageProps'` from `tsc` | Run `npm --prefix frontend run typecheck` (it runs `next typegen` first); plain `tsc` needs the generated route types |
-| A page hangs on "Compiling …" in `npm run dev` | Stop the dev server, delete `frontend/.next`, start it again. Don't run `npm run build` while the dev server is running (they share `.next`) |
+| A page hangs on "Compiling …" in `npm run dev` | Stop the dev server, delete `frontend/.next`, start it again. (`npm run build` can run while the dev server runs: Next.js 16 keeps dev output in `.next/dev`; checked in Phase 13) |
 | `failed to decode signing keys` | Run `npm run db:keys -- --force`, then `npm run db:start` |
+| API container exits at start with "Set MOCKPAY_WEBHOOK_SECRET…" | `ENVIRONMENT=production` needs both webhook secrets (random, e.g. `openssl rand -hex 32`) |
+| An order page stays on its loading skeleton | Order and chat pages only poll while the browser tab is visible; switch to the tab |
+| `npm run db:demo` fails removing old demo users | Run `npm run db:reset` first, then `npm run db:demo` |
 | `/me` returns 503 `db_unavailable` | `DATABASE_URL` is missing in `backend/.env`, or Supabase is not running |
 | Pages show "Missing NEXT_PUBLIC_…" | Create `frontend/.env.local` from `.env.example`, then restart `npm run dev` |
