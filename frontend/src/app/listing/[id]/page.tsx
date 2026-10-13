@@ -121,7 +121,7 @@ function Breadcrumbs({ listing }: { listing: ListingDetail }) {
 function Gallery({ listing }: { listing: ListingDetail }) {
   if (listing.images.length === 0) {
     return (
-      <div className="media-frame grid place-items-center text-small text-fg-subtle">No photos</div>
+      <div className="media-frame grid place-items-center text-small text-fg-muted">No photos</div>
     );
   }
   return (

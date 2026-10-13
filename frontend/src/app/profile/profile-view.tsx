@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { SignOutButton } from "@/components/sign-out-button";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { FormAlert } from "@/components/ui/field";
+import { ButtonLink } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { Me } from "@/lib/profile";
 
@@ -22,20 +22,25 @@ export function ProfileView() {
     };
   }, [attempt]);
 
+  // Pages stay mounted (hidden) after navigation. Drop account data when hidden,
+  // so it isn't kept around after logging out on a shared device.
+  useLayoutEffect(
+    () => () => {
+      setMe(null);
+      setError(null);
+    },
+    [],
+  );
+
   if (error) {
     return (
-      <div className="flex flex-col items-start gap-3">
-        <FormAlert message={error} />
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setError(null);
-            setAttempt((n) => n + 1);
-          }}
-        >
-          Try again
-        </Button>
-      </div>
+      <LoadError
+        message={error}
+        onRetry={() => {
+          setError(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
     );
   }
   if (!me) {
@@ -52,12 +57,12 @@ export function ProfileView() {
         <dt className="text-fg-muted">Username</dt>
         <dd className="mb-2 font-medium sm:mb-0">@{me.username}</dd>
         <dt className="text-fg-muted">Display name</dt>
-        <dd className="mb-2 sm:mb-0">{me.display_name ?? <span className="text-fg-subtle">Not set</span>}</dd>
+        <dd className="mb-2 sm:mb-0">{me.display_name ?? <span className="text-fg-muted">Not set</span>}</dd>
         <dt className="text-fg-muted">Email</dt>
         <dd className="mb-2 sm:mb-0">{me.email}</dd>
         <dt className="text-fg-muted">Bio</dt>
         <dd className="mb-2 whitespace-pre-line sm:mb-0">
-          {me.bio || <span className="text-fg-subtle">Not set</span>}
+          {me.bio || <span className="text-fg-muted">Not set</span>}
         </dd>
         <dt className="text-fg-muted">Joined</dt>
         <dd className="mb-2 sm:mb-0">{new Date(me.created_at).toLocaleDateString("en-PH", { dateStyle: "medium" })}</dd>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/catalog/empty-state";
 import { ListingGrid, ListingGridSkeleton } from "@/components/catalog/listing-grid";
 import { ButtonLink } from "@/components/ui/button";
-import { FormAlert } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ListingPage } from "@/lib/catalog-types";
 
@@ -12,6 +12,7 @@ import type { ListingPage } from "@/lib/catalog-types";
 export function FavoritesView() {
   const [data, setData] = useState<ListingPage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   // Runs again whenever this page becomes visible, so removals elsewhere show up.
   useEffect(() => {
@@ -20,12 +21,24 @@ export function FavoritesView() {
       .catch((e: unknown) =>
         setError(e instanceof ApiError ? e.message : "Could not load your saved items."),
       );
-  }, []);
+  }, [attempt]);
 
-  if (error) return <FormAlert message={error} />;
+  if (error) {
+    return (
+      <LoadError
+        message={error}
+        onRetry={() => {
+          setError(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
+  }
   if (!data) return <ListingGridSkeleton count={5} />;
   return (
     <div className="flex flex-col gap-4">
+      {/* Keeps heading levels in order: page h1 → this h2 → card h3s. */}
+      <h2 className="sr-only">Saved listings</h2>
       {data.total > data.items.length && (
         <p className="text-small text-fg-muted">Showing your {data.items.length} newest saved items.</p>
       )}

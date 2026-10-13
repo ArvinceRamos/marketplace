@@ -207,6 +207,10 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
   waking Render server shows a skeleton, then `error.tsx` with "Try again" after 20 s.
   Unknown IDs/slugs render `not-found.tsx` (soft 404 with `noindex`, because the page is streamed).
 - `next/image` runs with `images.unoptimized: true`; we serve our own WebP thumbnails.
+- **Phase 6b:** every page gets security headers and a static CSP from `next.config.ts`
+  (SECURITY_PLAN §3c, §7). The root layout adds a "Skip to content" link and a footer linking
+  `/safety`, `/terms`, `/privacy`. Client views that load account data show "Try again" on
+  failure (`components/ui/load-error.tsx`) and drop that data when hidden.
 - Next.js 16.4 is current (released 2026-10-06). A security release is announced for 2026-10-14;
   Phase 1 should pin to that patched version. Source: https://nextjs.org/blog (checked 2026-10-10)
 

@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/catalog/empty-state";
 import { Pagination } from "@/components/catalog/pagination";
 import { ListingActions } from "@/components/selling/listing-actions";
 import { ButtonLink } from "@/components/ui/button";
-import { FormAlert } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ListingPage } from "@/lib/catalog-types";
 import { CONDITION_LABELS, formatPrice } from "@/lib/format";
@@ -46,7 +46,15 @@ export function MyListingsView({ status, page }: { status: ListingStatus; page: 
       <p role="status" className="text-small text-success empty:hidden">
         {notice}
       </p>
-      <FormAlert message={error} />
+      {error && (
+        <LoadError
+          message={error}
+          onRetry={() => {
+            setError(null);
+            setReload((n) => n + 1);
+          }}
+        />
+      )}
       {!data && !error && <p aria-busy="true">Loading…</p>}
       {data && data.items.length === 0 && (
         <EmptyState
@@ -63,7 +71,7 @@ export function MyListingsView({ status, page }: { status: ListingStatus; page: 
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={item.cover_thumb_url} alt="" loading="lazy" />
                 ) : (
-                  <span className="absolute inset-0 grid place-items-center text-center text-caption text-fg-subtle">
+                  <span className="absolute inset-0 grid place-items-center text-center text-caption text-fg-muted">
                     No photo
                   </span>
                 )}

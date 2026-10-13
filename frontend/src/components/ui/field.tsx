@@ -9,7 +9,7 @@ type Base = { label: string; name: string; error?: string; hint?: string };
 // 44px tall, 16px text (prevents iOS zoom), strong border that turns accent on focus.
 const inputClass =
   "w-full rounded-sm border border-border-strong bg-surface px-4 py-2.5 text-body text-fg " +
-  "placeholder:text-fg-subtle hover:border-ink-500 " +
+  "placeholder:text-fg-placeholder hover:border-ink-500 " +
   "focus-visible:border-accent focus-visible:outline-1 focus-visible:outline-offset-0 focus-visible:outline-accent " +
   "aria-[invalid=true]:border-danger disabled:bg-ink-100 disabled:text-fg-subtle";
 

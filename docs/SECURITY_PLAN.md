@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-13 · Status: Phase 6a — reports, blocks, account deletion, rate limits implemented and tested
+Last updated: 2026-10-13 · Status: Phase 6b — security headers/CSP added; 6a + 6b changes reviewed
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -23,7 +23,7 @@ Last updated: 2026-10-13 · Status: Phase 6a — reports, blocks, account deleti
 | T9 | Direct database access from browser | App tables in non-exposed `app` schema; RLS still on; secret key never in frontend | Call Supabase Data API for `app` tables → not found |
 | T10 | Privilege escalation to admin | Admin only via `app_metadata.role` (users cannot edit it); no client-side role flags; admin routes not built yet | User edits `user_metadata.role` → still not admin |
 | T11 | Spam / abuse (mass chats, reports) | Per-user rate limits (API spec §3); Supabase Auth limits; one open report per target | 11th report in a day → 429 + `Retry-After`; limiter unit tests (every action uses the same code) |
-| T12 | XSS via listing text or chat | React escapes by default; no `dangerouslySetInnerHTML`; plain text only; strict CSP headers in Next.js | Script tags render as text |
+| T12 | XSS via listing text or chat | React escapes by default; no `dangerouslySetInnerHTML`; plain text only; static CSP in Next.js (§7) | Script tags render as text; outside scripts and fetches blocked by CSP (browser check) |
 | T13 | SQL injection | SQLAlchemy bound parameters only; `websearch_to_tsquery` for search input | Quotes and SQL in `q` → normal results |
 | T14 | Open redirect after login | `next` must be a relative same-site path | `?next=https://evil.example` → goes to `/` |
 | T15 | User enumeration / ID probing | 404 for not-visible; generic auth errors from Supabase | Draft listing ID by stranger → 404 |
@@ -53,6 +53,19 @@ Last updated: 2026-10-13 · Status: Phase 6a — reports, blocks, account deleti
 - **Guard triggers.** Triggers that tell end users apart from internal updates run with caller
   rights on purpose; inside `security definer` functions `current_user` is always the owner.
 - **Bad tokens are rejected, not ignored**, even on public routes, so a broken session is visible.
+
+## 3c. Security headers (Phase 6b)
+Set for every page in `frontend/next.config.ts` from `src/lib/security-headers.ts` (unit tested).
+See §7 for the CSP.
+| Header | Value | Why |
+|---|---|---|
+| `X-Frame-Options` + CSP `frame-ancestors 'none'` | DENY | No clickjacking |
+| `X-Content-Type-Options` | nosniff | No MIME sniffing |
+| `Referrer-Policy` | strict-origin-when-cross-origin | Listing and chat URLs don't leak to other sites |
+| `Permissions-Policy` | camera, microphone, geolocation, payment, usb, topics off | Features we don't use |
+| `Cross-Origin-Opener-Policy` | same-origin | Other windows can't script ours |
+| `Strict-Transport-Security` | 2 years, subdomains (no preload) | HTTPS only once hosted; ignored on http |
+| `X-Powered-By` | removed | Less fingerprinting |
 
 ## 4. Account deletion (PH Data Privacy Act)
 1. User types their username to confirm.
@@ -85,8 +98,10 @@ account deletion (erasure); EXIF stripping; no sale or sharing of data.
 Source: https://privacy.gov.ph/data-privacy-act/ (checked 2026-10-10). Before any public launch,
 read the full law and NPC guidance or ask a qualified person.
 
-Also planned: an 18+ checkbox at sign-up, a prohibited-items list on `/safety` and `/terms`,
-and a counterfeit/IP report reason.
+Done: 18+ checkbox at sign-up (Phase 2); counterfeit report reason (6a); `/privacy`, `/terms`, and
+`/safety` with the prohibited-items list (6b), linked from the footer and the sign-up form.
+Open before public launch: a contact address for privacy requests on `/privacy` (and for data
+copies, which have no self-service export yet).
 
 ## 6. Security checks per phase
 - Phase 2: RLS tests for every table and action (allowed + denied).
@@ -106,5 +121,35 @@ and a counterfeit/IP report reason.
   tests cover windows, costs, and the `X-Forwarded-For` rule (only the hop our proxy added is
   trusted; `TRUSTED_PROXY_HOPS`, default 0). Known limit: counts reset on restart. Also: the
   `/settings` page drops account data when hidden, like the login forms.
-- Phase 6b: run `/security-review` on the branch; fix findings; review headers/CSP.
+- Phase 6b (2026-10-13): security headers and CSP (§7); safety, privacy, and terms pages (T18).
+  Security review of everything since Phase 5 (`8e6ee9e`, i.e. 6a + 6b). The `/security-review`
+  command needs a git remote (`origin/HEAD`), which this repo does not have yet, so the same review
+  was done by hand on `git diff 8e6ee9e`. Checked: caller ID only from the token in every new route;
+  SQL uses bound parameters (f-strings join fixed fragments only); report/block/delete routes need a
+  token and are rate limited (delete needs the typed username); the secret key goes only to
+  `/auth/v1/admin` and is never logged; Storage cleanup uses the user's own token, so RLS limits it to
+  their folder; no `dangerouslySetInnerHTML` or `eval` in the frontend; account data is dropped
+  from hidden pages (`/profile`, `/profile/edit`, `/settings`). **No vulnerabilities found.**
+  Accepted, documented trade-offs: `script-src 'unsafe-inline'` (§7); a blocked person can guess
+  they were blocked because they can no longer write (by design, T5); rate limits reset on restart.
+  Open for Phase 7: the API's own JSON responses have no security headers (`nosniff` etc.).
 - Phase 7: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.
+
+## 7. Content Security Policy (Phase 6b)
+Static policy in a header, no nonces (decision 2026-10-13): nonces force every page to render
+per request and drop the prerendered shells (Next.js CSP guide, `node_modules/next/dist/docs`).
+
+`default-src 'self'` · `script-src 'self' 'unsafe-inline'` (+ `'unsafe-eval'` in dev only) ·
+`style-src 'self' 'unsafe-inline'` · `img-src 'self' blob: data: <Supabase>` · `font-src 'self'` ·
+`connect-src 'self' <Supabase> <API>` · `object-src 'none'` · `base-uri 'self'` ·
+`form-action 'self'` · `frame-ancestors 'none'` · `upgrade-insecure-requests` (only when both
+URLs are https).
+
+Origins come from `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_API_BASE_URL` at build/start time;
+a missing or broken URL is left out (stricter), never replaced by `*`. **Trade-off:** Next.js
+static shells need inline scripts, so `'unsafe-inline'` stays and the CSP is a second line of
+defence; the first is React escaping (T12). It still blocks scripts and data calls to any other
+origin, plugins, `<base>` hijacking, and framing. Checked in the browser (2026-10-13): sign-up,
+profile edit, listing photos, chat, account deletion, and dev hot reload work; a fetch and a
+`<script>` to another origin are blocked. Re-check after deploy: hosted Supabase and API URLs
+must be the ones in the frontend env, or images and sign-in break.

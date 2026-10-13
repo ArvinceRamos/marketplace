@@ -6,6 +6,7 @@ import { Avatar } from "@/components/catalog/avatar";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { FormAlert, TextField } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Me } from "@/lib/profile";
@@ -29,6 +30,7 @@ export function SettingsView() {
   const [reports, setReports] = useState<Report[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleted, setDeleted] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   // Runs again when this page becomes visible after navigating away.
   useEffect(() => {
@@ -48,7 +50,7 @@ export function SettingsView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   // Pages stay mounted (hidden) after navigation. Drop account data when hidden,
   // so it isn't kept around after logging out on a shared device.
@@ -70,7 +72,17 @@ export function SettingsView() {
       </div>
     );
   }
-  if (error) return <FormAlert message={error} />;
+  if (error) {
+    return (
+      <LoadError
+        message={error}
+        onRetry={() => {
+          setError(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
+  }
   if (!me || !blocks || !reports) {
     return (
       <div aria-busy="true" aria-label="Loading settings" className="flex flex-col gap-3">

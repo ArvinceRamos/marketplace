@@ -47,6 +47,7 @@
   /* ---------- Color: ink (cool neutral grays) ---------- */
   --color-ink-950: #14171a; /* primary text */
   --color-ink-700: #4b5359; /* secondary text; 7.6:1 on white */
+  --color-ink-600: #6b737a; /* placeholder text; 4.8:1 on white */
   --color-ink-500: #8a9298; /* icons, disabled text (not for body copy) */
   --color-ink-300: #c5cacd; /* strong borders, input outlines */
   --color-ink-200: #dfe3e5; /* hairline dividers */
@@ -60,6 +61,7 @@
   --color-fg: var(--color-ink-950);
   --color-fg-muted: var(--color-ink-700);
   --color-fg-subtle: var(--color-ink-500);
+  --color-fg-placeholder: var(--color-ink-600);
   --color-fg-on-brand: #ffffff;
   --color-border: var(--color-ink-200);
   --color-border-strong: var(--color-ink-300);

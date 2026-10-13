@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { UserSafetyMenu } from "@/components/safety/user-safety-menu";
 import { Button } from "@/components/ui/button";
 import { FormAlert } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatDateTime, formatPrice } from "@/lib/format";
 import {
@@ -32,6 +33,7 @@ export function Thread({ id }: { id: string }) {
   const [olderCursor, setOlderCursor] = useState<number | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const lastId = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -75,7 +77,7 @@ export function Thread({ id }: { id: string }) {
     return () => {
       active = false;
     };
-  }, [id, addMessages, markRead]);
+  }, [id, addMessages, markRead, attempt]);
 
   // New messages every few seconds while the tab is visible.
   const pollMessages = useCallback(async () => {
@@ -104,6 +106,7 @@ export function Thread({ id }: { id: string }) {
 
   async function loadOlder() {
     if (!olderCursor) return;
+    setError(null);
     try {
       const page = await apiFetch<MessagePage>(
         `/conversations/${id}/messages?before=${olderCursor}`,
@@ -126,7 +129,16 @@ export function Thread({ id }: { id: string }) {
     );
   }
   if (!detail) {
-    return error ? <FormAlert message={error} /> : <p aria-busy="true">Loading chat…</p>;
+    if (!error) return <p aria-busy="true">Loading chat…</p>;
+    return (
+      <LoadError
+        message={error}
+        onRetry={() => {
+          setError(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
   }
 
   const notice = listingNotice(detail.listing);
@@ -166,7 +178,10 @@ export function Thread({ id }: { id: string }) {
 
       <p className="rounded-md bg-surface-muted p-3 text-caption text-fg-muted">
         Payments and delivery are arranged by you. Meet in a public place, check the item before
-        paying, and never send money to someone you haven&apos;t met. Be careful with links.
+        paying, and never send money to someone you haven&apos;t met. Be careful with links.{" "}
+        <Link href="/safety" className="link">
+          Safety tips
+        </Link>
       </p>
       {notice && (
         <p role="status" className="rounded-md bg-warning-soft p-3 text-small">
@@ -174,6 +189,7 @@ export function Thread({ id }: { id: string }) {
         </p>
       )}
 
+      <FormAlert message={error} />
       {olderCursor && (
         <Button variant="ghost" size="sm" className="self-center" onClick={loadOlder}>
           Load earlier messages
@@ -211,7 +227,7 @@ export function Thread({ id }: { id: string }) {
 
 function MessageItem({ message: m }: { message: Message }) {
   const time = (
-    <time dateTime={m.created_at} className="text-caption text-fg-subtle">
+    <time dateTime={m.created_at} className="text-caption text-fg-muted">
       {formatDateTime(m.created_at)}
     </time>
   );

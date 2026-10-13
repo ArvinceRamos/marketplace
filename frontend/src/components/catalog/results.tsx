@@ -42,7 +42,11 @@ export async function Results({
           showCategory={showCategory}
         />
       </aside>
-      <section aria-label="Results" className="flex flex-col gap-4">
+      <section aria-labelledby="results-heading" className="flex flex-col gap-4">
+        {/* Keeps heading levels in order: page h1 → this h2 → card h3s. */}
+        <h2 id="results-heading" className="sr-only">
+          Results
+        </h2>
         <p className="text-small text-fg-muted" role="status" data-numeric>
           {page.total === 1 ? "1 item" : `${page.total.toLocaleString("en-PH")} items`}
         </p>

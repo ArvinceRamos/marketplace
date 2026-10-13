@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormAlert, TextArea, TextField } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { Me } from "@/lib/profile";
 
@@ -31,12 +32,30 @@ export function ProfileEditForm() {
   const [fields, setFields] = useState<Fields>({});
   const [alert, setAlert] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
+  // Runs again when this page becomes visible after navigating away.
   useEffect(() => {
+    let active = true;
     apiFetch<Me>("/me")
-      .then(setMe)
-      .catch((e: unknown) => setAlert(e instanceof ApiError ? e.message : "Could not load your profile."));
-  }, []);
+      .then((data) => active && setMe(data))
+      .catch((e: unknown) => active && setAlert(e instanceof ApiError ? e.message : "Could not load your profile."));
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+
+  // Pages stay mounted (hidden) after navigation. Reset when hidden, so account data
+  // isn't kept after logging out and a finished save doesn't leave "Saving…" behind.
+  useLayoutEffect(
+    () => () => {
+      setMe(null);
+      setFields({});
+      setAlert(null);
+      setPending(false);
+    },
+    [],
+  );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,7 +88,16 @@ export function ProfileEditForm() {
   }
 
   if (!me) {
-    return alert ? <FormAlert message={alert} /> : <p aria-busy="true">Loading…</p>;
+    if (!alert) return <p aria-busy="true">Loading…</p>;
+    return (
+      <LoadError
+        message={alert}
+        onRetry={() => {
+          setAlert(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
   }
 
   return (

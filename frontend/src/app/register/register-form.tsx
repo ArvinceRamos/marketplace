@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { FormAlert, TextField } from "@/components/ui/field";
+import { TextLink } from "@/components/ui/text-link";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase/client";
 
@@ -106,6 +107,10 @@ export function RegisterForm() {
           </p>
         )}
       </div>
+      <p className="text-small text-fg-muted">
+        By creating an account, you agree to the <TextLink href="/terms">Terms of use</TextLink> and
+        have read the <TextLink href="/privacy">Privacy notice</TextLink>.
+      </p>
       <Button type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>

@@ -25,7 +25,7 @@ export function ListingCard({ listing, priority = false }: { listing: Card; prio
             className="transition-transform duration-300 ease-standard group-hover:scale-[1.02]"
           />
         ) : (
-          <span className="absolute inset-0 grid place-items-center text-caption text-fg-subtle">
+          <span className="absolute inset-0 grid place-items-center text-caption text-fg-muted">
             No photo
           </span>
         )}

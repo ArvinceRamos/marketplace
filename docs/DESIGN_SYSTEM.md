@@ -24,7 +24,7 @@ assets, logo, or brand color is used.
 - **Text:** `text-caption` 12/16 · `text-small` 14/20 · `text-body` 16/24 · `text-title` 18/24 ·
   `text-heading` 22/28 · `text-display` 28/36. Page titles: `text-heading lg:text-display`.
 - **Color roles:** `bg-canvas`, `bg-surface`, `bg-surface-muted`, `text-fg`, `text-fg-muted`,
-  `text-fg-subtle` (icons/disabled only), `bg-accent`, `hover:bg-accent-hover`, `bg-accent-soft`,
+  `text-fg-subtle` (icons/disabled only, 3.1:1), `placeholder:text-fg-placeholder` (4.8:1), `bg-accent`, `hover:bg-accent-hover`, `bg-accent-soft`,
   `text-danger` / `bg-danger-soft`, `text-success`, `bg-warning` (with `text-fg`).
 - **Raw scales** (`brand-50…900`, `ink-50…950`) only when no role fits.
 - **Contrast:** `text-fg` and `text-fg-muted` pass WCAG AA on white; `bg-accent` with white text is 7:1.

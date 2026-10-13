@@ -100,7 +100,7 @@ export function InboxList({ activeId }: { activeId: string | null }) {
                         {personName(c.other_user)}
                       </span>
                       {c.last_message && (
-                        <span className="shrink-0 text-caption text-fg-subtle">
+                        <span className="shrink-0 text-caption text-fg-muted">
                           {formatDateTime(c.last_message.at)}
                         </span>
                       )}

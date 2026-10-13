@@ -12,7 +12,8 @@ Last updated: 2026-10-13
 - **Phase 4: done (2026-10-13).** Create/edit/status/delete, photo pipeline, `/sell`, `/my-listings`, edit page.
 - **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
 - **Phase 6a: done (2026-10-13), committed 66dc74a.** Reports, blocks, account deletion, rate limits, `/settings`.
-- **Exact next step:** Phase 6b (safety/privacy/terms pages, accessibility + Lighthouse, error/empty states, CSP, `/security-review`) when you say yes.
+- **Phase 6b: done (2026-10-13), not committed yet.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
+- **Exact next step:** commit 6b, then Phase 7 (release readiness) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -97,11 +98,15 @@ key in `backend/.env`; Lighthouse via one-off `npx lighthouse` (6b).
 - Fixed during phase: flaky `test_participants_exchange_messages` (no `order by`); `/settings` now drops account data when hidden
 - Not done (6b or later): header unread badge updates on its next 30 s poll after a block, not at once; `/profile` still keeps data in its hidden page after logout (same fix as settings); `<summary>` menus show as "generic" in the accessibility tree (check in the a11y pass)
 
-**6b — pages and polish**
-- [ ] `/safety` (incl. prohibited items), `/privacy` (RA 10173 notes, not legal advice), `/terms`
-- [ ] Accessibility pass + Lighthouse audit (from Phase 3), error/empty states
-- [ ] Security headers/CSP in Next.js
-- [ ] `/security-review` on the branch, fix findings
+**6b — pages and polish (done 2026-10-13)**
+- [x] `/safety` (payments, meetups, scams, report/block, prohibited items), `/privacy` (RA 10173, not legal advice), `/terms`; site footer links them; sign-up form links terms + privacy; chat banner links safety tips
+- [x] Accessibility: skip link; heading order on search/category/favorites; low-contrast text (`fg-subtle`, 3.1:1) replaced in 7 places; new `fg-placeholder` (4.8:1) for inputs; anchor targets clear the sticky header
+- [x] Lighthouse 13.5 (one-off `npx`, mobile, production build): accessibility 100 on 17 pages (10 public, 7 signed-in with a real session); best practices 100; layout shift from the new footer fixed
+- [x] Error/empty states: "Try again" on every account page that can fail to load (`LoadError`); chat now shows "Could not load earlier messages" (was silent); `/profile` and `/profile/edit` drop data when hidden; edit form no longer stuck on "Saving…" after coming back
+- [x] Security headers + static CSP in `next.config.ts` (SECURITY_PLAN §3c, §7)
+- [x] Security review of 6a + 6b (by hand; `/security-review` needs a git remote): no vulnerabilities found
+- Checks passed: Ruff; pytest 182/182; ESLint; tsc; Vitest 74/74 (+7: headers, footer, retry); `next build` (new pages static); browser: headers present, CSP blocks outside script + fetch, sign-up, profile edit, listing photos, chat, account deletion and dev hot reload all work under CSP; skip link by keyboard; retry after a forced failure; 375 px no sideways scroll on new pages, settings, chat
+- Not done / notes: Lighthouse performance 71–93 on a throttled mobile profile (mostly script blocking time; not tuned); `<summary>` menus pass Lighthouse but were not tried with a real screen reader; privacy contact address still to add before launch; API JSON responses have no security headers (Phase 7); `.claude/launch.json` gained a `frontend-prod` entry (`next start`) for audits
 
 ### Phase 7 — Release readiness
 - [ ] Full test suite, lint, type checks, builds, migration replay from scratch
@@ -125,3 +130,4 @@ key in `backend/.env`; Lighthouse via one-off `npx lighthouse` (6b).
 | 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |
 | 2026-10-13 | 5 | Buyer–seller interactions done. Found and fixed a pre-existing DB bug: offer notes failed after a buyer deleted their account, blocking "mark sold". |
 | 2026-10-13 | 6a | Reports, blocks, account deletion, rate limits, settings. No new dependencies. Local secret key added to untracked `backend/.env`. Dev server stopped for `next build`; `.next` cleared. |
+| 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |

@@ -7,6 +7,7 @@ import { ListingFields } from "@/components/selling/listing-fields";
 import { PhotoGrid } from "@/components/selling/photo-grid";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { FormAlert } from "@/components/ui/field";
+import { LoadError } from "@/components/ui/load-error";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { CategoryNode, ListingDetail, Location } from "@/lib/catalog-types";
 import {
@@ -47,6 +48,7 @@ export function EditListing({
   const [photoStatus, setPhotoStatus] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   // Runs again whenever this page becomes visible, so the data is never stale.
   useEffect(() => {
@@ -57,7 +59,7 @@ export function EditListing({
           ? setMissing(true)
           : setAlert(message(e, "Could not load this listing.")),
       );
-  }, [id]);
+  }, [id, attempt]);
 
   if (missing) {
     return (
@@ -70,7 +72,16 @@ export function EditListing({
     );
   }
   if (!listing) {
-    return alert ? <FormAlert message={alert} /> : <p aria-busy="true">Loading…</p>;
+    if (!alert) return <p aria-busy="true">Loading…</p>;
+    return (
+      <LoadError
+        message={alert}
+        onRetry={() => {
+          setAlert(null);
+          setAttempt((n) => n + 1);
+        }}
+      />
+    );
   }
 
   async function addPhotos(files: File[]) {
