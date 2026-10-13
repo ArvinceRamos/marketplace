@@ -6,6 +6,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.catalog import Courier, PaymentMethod
+
 MAX_PRICE_CENTAVOS = 10_000_000_000  # ₱100M
 
 
@@ -23,6 +25,16 @@ Description = Annotated[str, AfterValidator(_strip), Field(max_length=5000)]
 DealNote = Annotated[str | None, Field(max_length=200), AfterValidator(_note)]
 Price = Annotated[int, Field(ge=0, le=MAX_PRICE_CENTAVOS)]
 Condition = Literal["brand_new", "like_new", "lightly_used", "well_used", "heavily_used"]
+# Blank = no size. Which sizes fit is checked against the category's list.
+Size = Annotated[str | None, Field(max_length=20), AfterValidator(_note)]
+
+
+def _unique[T](values: list[T]) -> list[T]:
+    return list(dict.fromkeys(values))
+
+
+PaymentMethods = Annotated[list[PaymentMethod], Field(max_length=5), AfterValidator(_unique)]
+Couriers = Annotated[list[Courier], Field(max_length=5), AfterValidator(_unique)]
 
 
 class ListingCreate(BaseModel):
@@ -37,6 +49,9 @@ class ListingCreate(BaseModel):
     meetup: bool = True
     delivery: bool = False
     deal_note: DealNote = None
+    size: Size = None
+    payment_methods: PaymentMethods = []
+    couriers: Couriers = []
 
     @model_validator(mode="after")
     def _deal_method(self) -> "ListingCreate":
@@ -46,7 +61,8 @@ class ListingCreate(BaseModel):
 
 
 class ListingUpdate(BaseModel):
-    """Partial update. Send only the fields that change; only `deal_note` may be null."""
+    """Partial update. Send only the fields that change; only `deal_note` and `size`
+    may be null."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -59,10 +75,13 @@ class ListingUpdate(BaseModel):
     meetup: bool | None = None
     delivery: bool | None = None
     deal_note: DealNote = None
+    size: Size = None
+    payment_methods: PaymentMethods | None = None
+    couriers: Couriers | None = None
 
     @model_validator(mode="after")
     def _no_nulls(self) -> "ListingUpdate":
-        for name in self.model_fields_set - {"deal_note"}:
+        for name in self.model_fields_set - {"deal_note", "size"}:
             if getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be empty.")
         return self

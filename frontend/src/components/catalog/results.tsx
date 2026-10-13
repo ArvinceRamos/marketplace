@@ -29,6 +29,9 @@ export async function Results({
     filters.min_price !== undefined ||
     filters.max_price !== undefined ||
     filters.condition.length > 0 ||
+    filters.size.length > 0 ||
+    filters.payment.length > 0 ||
+    filters.courier.length > 0 ||
     Boolean(filters.city);
 
   return (

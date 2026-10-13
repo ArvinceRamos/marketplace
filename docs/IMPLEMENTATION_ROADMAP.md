@@ -13,7 +13,8 @@ Last updated: 2026-10-13
 - **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
 - **Phase 6a: done (2026-10-13), committed 66dc74a.** Reports, blocks, account deletion, rate limits, `/settings`.
 - **Phase 6b: done (2026-10-13), committed fa62b0a.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
-- **Exact next step:** Phase 7 (release readiness) when you say yes.
+- **Phase 7: done (2026-10-13).** Sizes, follow sellers + feed, deal options (labels only).
+- **Exact next step:** Phase 8 (release readiness).
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -108,7 +109,19 @@ key in `backend/.env`; Lighthouse via one-off `npx lighthouse` (6b).
 - Checks passed: Ruff; pytest 182/182; ESLint; tsc; Vitest 74/74 (+7: headers, footer, retry); `next build` (new pages static); browser: headers present, CSP blocks outside script + fetch, sign-up, profile edit, listing photos, chat, account deletion and dev hot reload all work under CSP; skip link by keyboard; retry after a forced failure; 375 px no sideways scroll on new pages, settings, chat
 - Not done / notes: Lighthouse performance 71–93 on a throttled mobile profile (mostly script blocking time; not tuned); `<summary>` menus pass Lighthouse but were not tried with a real screen reader; privacy contact address still to add before launch; API JSON responses have no security headers (Phase 7); `.claude/launch.json` gained a `frontend-prod` entry (`next start`) for audits
 
-### Phase 7 — Release readiness
+### Phase 7 — Closets, sizes, deal options (approved 2026-10-13)
+Why: PH thrift buyers shop by size and follow sellers they like; buyers want to know up front
+if a seller takes GCash/Maya or ships by J&T etc. Payments and couriers stay **outside** the app
+(no escrow, no courier APIs: they need a registered business, fees, and BSP rules; ₱0 rule).
+- [x] Sizes: `size_options` table + `categories.size_group`; optional size on Women's/Men's Fashion (XXS–4XL, Free size), Shoes (EU 35–47), Kids' Clothing (age ranges); DB trigger + API check; size on cards and listing page; size filter on those subcategories
+- [x] Follow sellers: `follows` table (private under RLS), public `follower_count`, Follow button on seller page, `/following` (sellers + feed), Account menu link; blocking ends follows both ways; 60/hour limit, max 1,000
+- [x] Deal options: payment methods (GCash, Maya, bank transfer, cash on meetup, COD) and couriers (J&T, Flash, LBC, Lalamove, Grab) on the sell/edit form, listing page, and as filters; COD/couriers need delivery, cash needs meetup (API 422 + DB checks)
+- [x] Demo data (sizes from titles, deal options), privacy page updated (follows), docs (schema, API, flows, security T21–T22)
+- Migration: `20261013000300_closets_sizes_deals.sql`; replayed from scratch with `supabase db reset` (local), demo data reloaded
+- Checks passed: Ruff; pytest 191/191 (9 new: sizes, deal options, filters, follows, RLS); ESLint; tsc; Vitest 83/83 (+9); `next build`; Lighthouse accessibility + best practices 100 on fashion category, seller, listing, and payment-filtered search; browser: size filter (EU 42 → 1 item), payment+courier filter, listing details, sign-up, follow → 1 follower → `/following` feed, sell form (size appears with Shoes, couriers and COD with Delivery), draft saved and edit form prefilled, 375 px no sideways scroll; test account deleted (its follow removed)
+- Not done / notes: no "my sizes" saved preference; size filter only on a subcategory (not "All Fashion"); demo photos still draw a shirt for shoes; Vitest needed `--maxWorkers=2` on this machine (worker start-up timeouts when the machine is busy)
+
+### Phase 8 — Release readiness
 - [ ] Full test suite, lint, type checks, builds, migration replay from scratch
 - [ ] Re-check free-tier limits; update FREE_TIER_LIMITATIONS
 - [ ] Known bugs and limitations list
@@ -130,4 +143,5 @@ key in `backend/.env`; Lighthouse via one-off `npx lighthouse` (6b).
 | 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |
 | 2026-10-13 | 5 | Buyer–seller interactions done. Found and fixed a pre-existing DB bug: offer notes failed after a buyer deleted their account, blocking "mark sold". |
 | 2026-10-13 | 6a | Reports, blocks, account deletion, rate limits, settings. No new dependencies. Local secret key added to untracked `backend/.env`. Dev server stopped for `next build`; `.next` cleared. |
+| 2026-10-13 | 7 | Closets, sizes, deal options. No new dependencies. Escrow and courier APIs left out on purpose (business registration, fees, BSP rules; ₱0 rule). Local DB reset to replay migrations. |
 | 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |

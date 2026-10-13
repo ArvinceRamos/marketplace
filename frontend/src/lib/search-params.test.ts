@@ -19,9 +19,22 @@ test("parses valid filters and drops invalid ones", () => {
     min_price: 5000,
     max_price: undefined,
     condition: ["like_new"],
+    size: [],
+    payment: [],
+    courier: [],
     sort: "price_asc",
     page: 1,
   });
+});
+
+test("parses sizes and deal options, dropping unknown values", () => {
+  const f = parseFilters({
+    size: ["M", " M ", "", "x".repeat(21), "EU 40"],
+    payment: ["gcash", "paypal"],
+    courier: "jnt",
+  });
+  expect([f.size, f.payment, f.courier]).toEqual([["M", "EU 40"], ["gcash"], ["jnt"]]);
+  expect(toQuery(f)).toBe("?size=M&size=EU+40&payment=gcash&courier=jnt");
 });
 
 test("swaps a reversed price range", () => {

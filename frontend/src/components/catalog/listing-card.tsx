@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FavoriteButton } from "@/components/favorite-button";
 import type { ListingCard as Card } from "@/lib/catalog-types";
+import { sizeLabel } from "@/lib/deal-options";
 import { CONDITION_LABELS, formatPrice } from "@/lib/format";
 
 const STATUS_BADGE: Partial<Record<Card["status"], string>> = {
@@ -50,7 +51,9 @@ export function ListingCard({ listing, priority = false }: { listing: Card; prio
           </Link>
         </h3>
         <p className="text-caption text-fg-muted">
-          {CONDITION_LABELS[listing.condition]} · {listing.city.name}
+          {[listing.size && sizeLabel(listing.size), CONDITION_LABELS[listing.condition], listing.city.name]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </div>
     </article>

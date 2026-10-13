@@ -1,6 +1,6 @@
 # API Specification
 
-Last updated: 2026-10-13 · Status: built through Phase 6a. FastAPI also serves live OpenAPI docs at
+Last updated: 2026-10-13 · Status: built through Phase 7. FastAPI also serves live OpenAPI docs at
 `/docs` (local and non-production only).
 
 Base path: `/api/v1`. JSON in and out, except image upload (multipart).
@@ -48,9 +48,9 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 ### Public reference data
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/categories` | 🔓 | tree; cacheable |
+| GET | `/categories` | 🔓 | tree; cacheable. Each subcategory has `sizes` (its size list in display order; `[]` = no sizes) |
 | GET | `/locations` | 🔓 | regions → cities; cacheable |
-| GET | `/profiles/{username}` | 🔓 | public fields only: username, display_name, avatar_url, city, bio, joined_at, active_listing_count |
+| GET | `/profiles/{username}` | 🔓 | public fields only: username, display_name, avatar_url, city, bio, joined_at, active_listing_count, follower_count |
 | GET | `/profiles/{username}/listings` | 🔓 | active listings, paginated |
 
 ### Listings
@@ -77,6 +77,9 @@ unknown city is 422 with a field message. Status errors: 409 `invalid_status_cha
 | `min_price`, `max_price` | int (pesos) | 0–100,000,000; min ≤ max |
 | `condition` | repeatable enum | e.g. `condition=like_new&condition=brand_new` |
 | `city` | slug | |
+| `size` | repeatable string | ≤ 20 chars each, ≤ 15 values; exact match, any of them (Phase 7) |
+| `payment` | repeatable enum | `gcash`, `maya`, `bank_transfer`, `cash`, `cod`; listings accepting any of them |
+| `courier` | repeatable enum | `jnt`, `flash`, `lbc`, `lalamove`, `grab`; any of them |
 | `sort` | enum | `newest` (default), `price_asc`, `price_desc`, `relevance` (only with `q`) |
 | `page`, `page_size` | int | see conventions |
 
@@ -91,11 +94,19 @@ Create/edit body:
   "city_id": 41,
   "meetup": true,
   "delivery": false,
-  "deal_note": "SM North EDSA, weekends"
+  "deal_note": "SM North EDSA, weekends",
+  "size": null,
+  "payment_methods": ["gcash", "cash"],
+  "couriers": []
 }
 ```
-Listing response (card): `id, title, price_centavos, condition, status, city {name}, cover_thumb_url, seller {username, display_name, avatar_url}, published_at`. (`favorite_count` arrives with favorites in Phase 5.)
-Detail adds: `description, category {id, slug, name}, parent_category, images[{id, full_url, thumb_url, width, height, position}], meetup, delivery, deal_note, created_at, updated_at, is_owner`.
+Phase 7 fields (all optional): `size` must be on the category's size list (422 `size`: "Pick a
+size from the list." or "This category has no sizes."; on edit, changing to a category without
+sizes needs `size: null`). `payment_methods` and `couriers` are lists (duplicates dropped, ≤ 5).
+COD and couriers need `delivery`; `cash` needs `meetup` (422 with the field named). Labels only:
+the app never takes payments or books couriers.
+Listing response (card): `id, title, price_centavos, condition, status, city {name}, cover_thumb_url, seller {username, display_name, avatar_url}, published_at, size`.
+Detail adds: `description, category {id, slug, name}, parent_category, images[{id, full_url, thumb_url, width, height, position}], meetup, delivery, deal_note, payment_methods, couriers, created_at, updated_at, is_owner`.
 Search `q` matches title and description words, partial titles, and category names.
 
 ### Listing images
@@ -163,6 +174,18 @@ the blocker's inbox and unread count. `GET /conversations/{id}` adds `blocked_by
 `can_message`/`can_offer` are false when either side blocked. The blocked person is never told
 they were blocked.
 
+### Follows (Phase 7)
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/users/{username}/follow` | 🔒 | `{following: bool}` |
+| PUT | `/users/{username}/follow` | 🔒 | 204, idempotent; 422 `cannot_follow_self`; 404 `user_not_found`; 403 `follow_not_allowed` across a block (either side; the reason is not shown); 409 `too_many_follows` (1,000) |
+| DELETE | `/users/{username}/follow` | 🔒 | 204, idempotent |
+| GET | `/me/following` | 🔒 | sellers you follow: `username, display_name, avatar_url, followed_at`, newest first |
+| GET | `/me/feed` | 🔒 | active listings from sellers you follow, newest first; `ListingPage` |
+
+Who follows whom is private (only your own list); follower counts are public. Blocking someone
+ends follows both ways.
+
 ### Account
 `DELETE /me` body `{confirm_username}` (case and a leading `@` ignored) → 204. Errors: 422
 `username_mismatch`; 502 `storage_unavailable` (photos could not be removed, so the account was
@@ -185,11 +208,12 @@ Auth user (secret key). The token stays valid until it expires, but `/me` then r
 | Upload images | 60 / hour | user |
 | Reports | 10 / day | user |
 | Block/unblock | 30 / hour | user |
+| Follow/unfollow | 60 / hour | user |
 | Public search | 120 / minute | IP |
 
 Built in Phase 6a (`app/core/ratelimit.py`): in-process sliding window, no extra dependency.
 Over the limit → 429 `rate_limited` with `Retry-After` (seconds). Refused requests don't count.
-Uploads count per photo. Block and unblock share one budget. Counts live in memory: they reset
+Uploads count per photo. Block and unblock share one budget; so do follow and unfollow. Counts live in memory: they reset
 when the server restarts or sleeps (one Render instance). The IP comes from the socket address;
 `TRUSTED_PROXY_HOPS=1` on Render uses the entry the proxy appended to `X-Forwarded-For`
 (earlier entries can be faked). `RATE_LIMITS_ENABLED=false` turns it off (tests only).

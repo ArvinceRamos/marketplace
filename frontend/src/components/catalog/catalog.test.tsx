@@ -19,6 +19,7 @@ const listing: Card = {
   cover_thumb_url: "http://127.0.0.1:54421/storage/v1/object/public/listing-images/a/b-thumb.webp",
   seller: { username: "migs", display_name: "Miguel", avatar_url: null },
   published_at: "2026-10-10T00:00:00Z",
+  size: "M",
 };
 
 test("card shows price, title link, details, and sold badge", () => {
@@ -26,13 +27,16 @@ test("card shows price, title link, details, and sold badge", () => {
   expect(screen.getByText("₱23,500")).toBeDefined();
   const link = screen.getByRole("link", { name: "iPhone 13 128GB" });
   expect(link.getAttribute("href")).toBe(`/listing/${listing.id}`);
-  expect(screen.getByText("Lightly used · Makati")).toBeDefined();
+  expect(screen.getByText("Size M · Lightly used · Makati")).toBeDefined();
   expect(screen.getByText("Sold")).toBeDefined();
 });
 
 test("card without a photo shows a placeholder", () => {
-  render(<ListingCard listing={{ ...listing, cover_thumb_url: null, status: "active" }} />);
+  render(
+    <ListingCard listing={{ ...listing, cover_thumb_url: null, status: "active", size: null }} />,
+  );
   expect(screen.getByText("No photo")).toBeDefined();
+  expect(screen.queryByText(/Size/)).toBeNull();
   expect(screen.queryByText("Sold")).toBeNull();
 });
 

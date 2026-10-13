@@ -20,6 +20,26 @@ class ListingStatus(StrEnum):
     sold = "sold"
 
 
+class PaymentMethod(StrEnum):
+    """How a seller accepts payment. Labels only: money never passes through the app."""
+
+    gcash = "gcash"
+    maya = "maya"
+    bank_transfer = "bank_transfer"
+    cash = "cash"  # cash at the meetup
+    cod = "cod"  # cash on delivery, via the courier
+
+
+class Courier(StrEnum):
+    """How a seller ships. Labels only: the seller books the courier themselves."""
+
+    jnt = "jnt"
+    flash = "flash"
+    lbc = "lbc"
+    lalamove = "lalamove"
+    grab = "grab"
+
+
 class SortOrder(StrEnum):
     newest = "newest"
     price_asc = "price_asc"
@@ -33,8 +53,13 @@ class CategoryRef(BaseModel):
     name: str
 
 
+class CategoryChild(CategoryRef):
+    # Allowed sizes for listings in this subcategory, in display order; empty = no sizes.
+    sizes: list[str] = []
+
+
 class CategoryNode(CategoryRef):
-    children: list[CategoryRef] = []
+    children: list[CategoryChild] = []
 
 
 class Location(BaseModel):
@@ -67,6 +92,7 @@ class ListingCard(BaseModel):
     cover_thumb_url: str | None
     seller: SellerSummary
     published_at: datetime | None
+    size: str | None = None
 
 
 class ListingImage(BaseModel):
@@ -86,6 +112,8 @@ class ListingDetail(ListingCard):
     meetup: bool
     delivery: bool
     deal_note: str | None
+    payment_methods: list[PaymentMethod] = []
+    couriers: list[Courier] = []
     created_at: datetime
     updated_at: datetime
     is_owner: bool
@@ -110,3 +138,4 @@ class PublicProfile(BaseModel):
     city: CityRef | None
     joined_at: datetime
     active_listing_count: int
+    follower_count: int = 0

@@ -109,3 +109,8 @@ from (values
   ('vehicle-parts', 'car-accessories', 'Car Accessories', 2)
 ) as v(parent_slug, slug, name, sort_order)
 join app.categories c on c.slug = v.parent_slug;
+
+-- Size lists (Phase 7). The lists themselves are in the migration (app.size_options).
+update app.categories set size_group = 'clothing' where slug in ('womens-fashion', 'mens-fashion');
+update app.categories set size_group = 'shoes' where slug = 'shoes';
+update app.categories set size_group = 'kids' where slug = 'kids-clothing';

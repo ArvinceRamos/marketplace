@@ -111,8 +111,20 @@ stateDiagram-v2
 ## 6. Favorites
 Heart on cards and listing page. Guests are sent to login. `/favorites` shows saved items;
 sold or paused items show a label and can be removed; deleted listings drop out.
-Header (signed in): Sell · Inbox (unread badge) · Account menu (Profile, My listings, Saved items,
-Log out).
+Header (signed in): Sell · Inbox (unread badge) · Account menu (Profile, My listings, Following,
+Saved items, Settings, Log out).
+
+### 6b. Follow sellers, sizes, deal options (Phase 7)
+- Seller page: **Follow** / **Following** button and follower count (hidden on your own page;
+  guests go to login). `/following`: the sellers you follow, then their active listings, newest
+  first. Empty states: "not following anyone yet" (with Browse), or "nothing for sale right now".
+- Selling: after choosing Women's/Men's Fashion, Shoes, or Kids' Clothing, an optional **Size**
+  list appears. "Payment you accept" (GCash, Maya, bank transfer, cash on meetup, COD) and, when
+  Delivery is ticked, "Couriers you use" (J&T, Flash, LBC, Lalamove, Grab). COD and couriers only
+  show with Delivery; cash on meetup only with Meetup. Labels only: payment and booking happen
+  outside the app.
+- Browsing: cards show the size; the listing page shows Size, Payment, and Ships via. Filters add
+  Size (on a subcategory with sizes), Payment, and Ships via.
 
 ## 7. Report and block
 ```mermaid

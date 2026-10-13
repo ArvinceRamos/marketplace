@@ -38,6 +38,7 @@ RULES: dict[str, tuple[Rule, ...]] = {
     "upload_images": (Rule(60, HOUR),),  # counted per photo, not per request
     "report": (Rule(10, DAY),),
     "block": (Rule(30, HOUR),),  # block and unblock share one budget
+    "follow": (Rule(60, HOUR),),  # follow and unfollow share one budget
     "search": (Rule(120, MINUTE),),
 }
 

@@ -2,7 +2,8 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { CONDITIONS, type CategoryNode, type Location } from "@/lib/catalog-types";
+import { CONDITIONS, COURIERS, PAYMENT_METHODS, type CategoryNode, type Location } from "@/lib/catalog-types";
+import { COURIER_LABELS, PAYMENT_LABELS, sizesFor } from "@/lib/deal-options";
 import { CONDITION_LABELS } from "@/lib/format";
 import type { Filters } from "@/lib/search-params";
 
@@ -24,6 +25,41 @@ function dropEmptyFields(event: FormEvent<HTMLFormElement>) {
   fields.forEach((el) => (el.disabled = true));
   // Re-enable in case the page is restored from the back/forward cache.
   setTimeout(() => fields.forEach((el) => (el.disabled = false)), 0);
+}
+
+/** A group of checkboxes that all submit under one URL parameter. */
+function CheckGroup({
+  legend,
+  name,
+  options,
+  checked,
+  columns = 1,
+}: {
+  legend: string;
+  name: string;
+  options: { value: string; label: string }[];
+  checked: string[];
+  columns?: 1 | 3;
+}) {
+  return (
+    <fieldset className="flex flex-col">
+      <legend className="mb-1 text-small font-medium">{legend}</legend>
+      <div className={columns === 3 ? "grid grid-cols-3 gap-x-2" : "flex flex-col"}>
+        {options.map((o) => (
+          <label key={o.value} className="flex min-h-10 items-center gap-3 text-small text-fg">
+            <input
+              type="checkbox"
+              name={name}
+              value={o.value}
+              defaultChecked={checked.includes(o.value)}
+              className="size-5 shrink-0 accent-accent"
+            />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 const selectClass =
@@ -49,12 +85,17 @@ export function FilterPanel({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  // Size filter only on a subcategory that has sizes (e.g. Shoes, Women's Fashion).
+  const sizes = sizesFor(categories, filters.category);
   const active =
     (filters.min_price !== undefined ? 1 : 0) +
     (filters.max_price !== undefined ? 1 : 0) +
     filters.condition.length +
     (filters.city ? 1 : 0) +
-    (showCategory && filters.category ? 1 : 0);
+    (showCategory && filters.category ? 1 : 0) +
+    (sizes.length > 0 ? filters.size.length : 0) +
+    filters.payment.length +
+    filters.courier.length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -150,21 +191,22 @@ export function FilterPanel({
           </div>
         </fieldset>
 
-        <fieldset className="flex flex-col">
-          <legend className="mb-1 text-small font-medium">Condition</legend>
-          {CONDITIONS.map((c) => (
-            <label key={c} className="flex min-h-10 items-center gap-3 text-small text-fg">
-              <input
-                type="checkbox"
-                name="condition"
-                value={c}
-                defaultChecked={filters.condition.includes(c)}
-                className="size-5 accent-accent"
-              />
-              {CONDITION_LABELS[c]}
-            </label>
-          ))}
-        </fieldset>
+        {sizes.length > 0 && (
+          <CheckGroup
+            legend="Size"
+            name="size"
+            options={sizes.map((v) => ({ value: v, label: v }))}
+            checked={filters.size}
+            columns={sizes.length > 6 ? 3 : 1}
+          />
+        )}
+
+        <CheckGroup
+          legend="Condition"
+          name="condition"
+          options={CONDITIONS.map((c) => ({ value: c, label: CONDITION_LABELS[c] }))}
+          checked={filters.condition}
+        />
 
         <label className="flex flex-col gap-1 text-small font-medium">
           Location
@@ -177,6 +219,20 @@ export function FilterPanel({
             ))}
           </select>
         </label>
+
+        <CheckGroup
+          legend="Payment"
+          name="payment"
+          options={PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_LABELS[m] }))}
+          checked={filters.payment}
+        />
+
+        <CheckGroup
+          legend="Ships via"
+          name="courier"
+          options={COURIERS.map((c) => ({ value: c, label: COURIER_LABELS[c] }))}
+          checked={filters.courier}
+        />
 
         <div className="flex gap-2">
           <Button type="submit" fullWidth>

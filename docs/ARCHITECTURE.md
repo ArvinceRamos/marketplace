@@ -197,6 +197,7 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 | `/sell` | signed in | create listing |
 | `/my-listings`, `/my-listings/[id]/edit` | signed in, owner | |
 | `/favorites`, `/inbox`, `/inbox/[conversationId]` | signed in | |
+| `/following` | signed in | Phase 7: sellers you follow + their new listings |
 | `/profile`, `/profile/edit`, `/settings` | signed in | |
 | `/safety`, `/privacy`, `/terms` | public | safety guidance, privacy notice |
 

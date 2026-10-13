@@ -9,11 +9,19 @@ export const CONDITIONS = [
 ] as const;
 export type Condition = (typeof CONDITIONS)[number];
 
+// Deal options are labels only: payments and couriers are arranged outside the app.
+export const PAYMENT_METHODS = ["gcash", "maya", "bank_transfer", "cash", "cod"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const COURIERS = ["jnt", "flash", "lbc", "lalamove", "grab"] as const;
+export type Courier = (typeof COURIERS)[number];
+
 export const SORTS = ["newest", "price_asc", "price_desc", "relevance"] as const;
 export type Sort = (typeof SORTS)[number];
 
 export type CategoryRef = { id: number; slug: string; name: string };
-export type CategoryNode = CategoryRef & { children: CategoryRef[] };
+/** A subcategory, with its size list (empty when the category has no sizes). */
+export type CategoryChild = CategoryRef & { sizes: string[] };
+export type CategoryNode = CategoryRef & { children: CategoryChild[] };
 export type Location = { id: number; slug: string; city: string; province: string; region: string };
 export type CityRef = { id: number; slug: string; name: string };
 
@@ -27,6 +35,7 @@ export type ListingCard = {
   cover_thumb_url: string | null;
   seller: { username: string; display_name: string | null; avatar_url: string | null };
   published_at: string | null;
+  size: string | null;
 };
 
 export type ListingImage = {
@@ -46,6 +55,8 @@ export type ListingDetail = ListingCard & {
   meetup: boolean;
   delivery: boolean;
   deal_note: string | null;
+  payment_methods: PaymentMethod[];
+  couriers: Courier[];
   created_at: string;
   updated_at: string;
   is_owner: boolean;
@@ -70,4 +81,5 @@ export type PublicProfile = {
   city: CityRef | null;
   joined_at: string;
   active_listing_count: number;
+  follower_count: number;
 };

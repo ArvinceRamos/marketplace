@@ -60,6 +60,29 @@ test("readListingForm builds the API body", () => {
     meetup: true,
     delivery: false,
     deal_note: null,
+    size: null,
+    payment_methods: [],
+    couriers: [],
+  });
+});
+
+test("readListingForm keeps size and drops deal options that don't apply", () => {
+  const data = form({ ...valid, size: "M" });
+  for (const p of ["gcash", "cod", "cash", "paypal"]) data.append("payment_methods", p);
+  data.append("couriers", "jnt");
+  // Meetup only: COD and couriers need delivery, so they are left out.
+  const { input } = readListingForm(data);
+  expect([input?.size, input?.payment_methods, input?.couriers]).toEqual(["M", ["gcash", "cash"], []]);
+
+  data.set("delivery", "on");
+  expect(readListingForm(data).input?.payment_methods).toEqual(["gcash", "cod", "cash"]);
+  expect(readListingForm(data).input?.couriers).toEqual(["jnt"]);
+});
+
+test("friendlyFields keeps the API's own words for size and deal options", () => {
+  expect(friendlyFields({ size: "This category has no sizes.", title: "String too short" })).toEqual({
+    size: "This category has no sizes.",
+    title: "Use 3–80 characters.",
   });
 });
 

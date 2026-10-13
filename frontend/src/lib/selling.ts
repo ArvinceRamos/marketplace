@@ -1,7 +1,8 @@
 // Seller-side helpers: form parsing, client-side checks, and status actions.
 // The API re-checks everything; these checks only give faster, friendlier feedback.
-import type { Condition, ListingCard } from "@/lib/catalog-types";
-import { CONDITIONS } from "@/lib/catalog-types";
+import type { Condition, Courier, ListingCard, PaymentMethod } from "@/lib/catalog-types";
+import { CONDITIONS, COURIERS, PAYMENT_METHODS } from "@/lib/catalog-types";
+import { fitDealOptions } from "@/lib/deal-options";
 
 export const MAX_PHOTOS = 8;
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -22,6 +23,9 @@ export type ListingInput = {
   meetup: boolean;
   delivery: boolean;
   deal_note: string | null;
+  size: string | null;
+  payment_methods: PaymentMethod[];
+  couriers: Courier[];
 };
 
 export type FieldName = keyof ListingInput;
@@ -52,7 +56,13 @@ const MESSAGES: Record<FieldName, string> = {
   meetup: "Choose meetup, delivery, or both.",
   delivery: "Choose meetup, delivery, or both.",
   deal_note: "Use up to 200 characters.",
+  size: "Pick a size from the list.",
+  payment_methods: "Check the payment options.",
+  couriers: "Check the couriers.",
 };
+
+// Fields whose API messages are already written for people (kept as they are).
+const KEEP_API_MESSAGE = new Set<FieldName>(["size", "payment_methods", "couriers"]);
 
 /** Read and check the listing form. Returns the API body, or errors per field. */
 export function readListingForm(form: FormData): { input: ListingInput | null; errors: FieldErrors } {
@@ -76,6 +86,21 @@ export function readListingForm(form: FormData): { input: ListingInput | null; e
   if (!meetup && !delivery) errors.meetup = MESSAGES.meetup;
   const dealNote = text("deal_note");
   if (dealNote.length > 200) errors.deal_note = MESSAGES.deal_note;
+  const size = text("size");
+  if (size.length > 20) errors.size = MESSAGES.size;
+  // Hidden options are not submitted; fitDealOptions also drops any that no longer apply.
+  const deal = fitDealOptions(
+    meetup,
+    delivery,
+    form
+      .getAll("payment_methods")
+      .map(String)
+      .filter((p): p is PaymentMethod => PAYMENT_METHODS.includes(p as PaymentMethod)),
+    form
+      .getAll("couriers")
+      .map(String)
+      .filter((c): c is Courier => COURIERS.includes(c as Courier)),
+  );
 
   if (Object.keys(errors).length > 0) return { input: null, errors };
   return {
@@ -89,6 +114,9 @@ export function readListingForm(form: FormData): { input: ListingInput | null; e
       meetup,
       delivery,
       deal_note: dealNote || null,
+      size: size || null,
+      payment_methods: deal.payments,
+      couriers: deal.couriers,
     },
     errors,
   };
@@ -100,7 +128,8 @@ export function friendlyFields(apiFields: Record<string, string>): FieldErrors {
   const ours = new Set(["Choose a subcategory.", "Choose a category.", "Choose a city."]);
   for (const [key, message] of Object.entries(apiFields)) {
     const name = key.split(".")[0] as FieldName;
-    if (name in MESSAGES) out[name] = ours.has(message) ? message : MESSAGES[name];
+    if (!(name in MESSAGES)) continue;
+    out[name] = ours.has(message) || KEEP_API_MESSAGE.has(name) ? message : MESSAGES[name];
   }
   return out;
 }

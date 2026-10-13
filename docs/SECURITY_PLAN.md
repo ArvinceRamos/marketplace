@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-13 · Status: Phase 6b — security headers/CSP added; 6a + 6b changes reviewed
+Last updated: 2026-10-13 · Status: Phase 7 — follows, sizes, deal options added and tested
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -31,6 +31,8 @@ Last updated: 2026-10-13 · Status: Phase 6b — security headers/CSP added; 6a 
 | T17 | CSRF | API uses bearer tokens in headers, not cookies, so cross-site forms cannot call it; CORS restricted | — |
 | T18 | Scams between users | Safety page, chat banner, "payments happen outside the app", report + block, no fake "verified" labels | Manual review of copy |
 | T19 | Dependency vulnerabilities | Lockfiles (`uv.lock`, `package-lock.json`); Dependabot alerts (free); pin patched Next.js (security release due 2026-10-14) | CI installs from lockfiles |
+| T21 | Follow graph leaks (who follows whom) or follow spam | RLS: only your own follows are readable; public count via a definer function; follow rate limit 60/hour, max 1,000; no follows across a block; blocking ends follows both ways | Others/guests can't read follows; insert as someone else → 42501; block removes both directions |
+| T22 | Payment scams via in-app "payment" features | No payments, escrow, or courier booking in the app; payment methods and couriers are labels only; safety copy next to them ("never share a one-time PIN") | Manual review of copy |
 | T20 | Error leaks | Central handler returns generic 500; details only in logs with request ID; OpenAPI docs off in production | Forced error → no stack trace in response |
 
 ## 3. Keys and secrets
@@ -133,7 +135,13 @@ copies, which have no self-service export yet).
   Accepted, documented trade-offs: `script-src 'unsafe-inline'` (§7); a blocked person can guess
   they were blocked because they can no longer write (by design, T5); rate limits reset on restart.
   Open for Phase 7: the API's own JSON responses have no security headers (`nosniff` etc.).
-- Phase 7: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.
+- Phase 7 (2026-10-13): follows, sizes, deal options (T21, T22). Tests: follow/unfollow idempotent,
+  self 422, unknown 404, guests 401; follows private under RLS (other users and guests see none;
+  insert as someone else and setting `created_at` refused); blocking ends follows both ways and
+  re-follow across a block is 403 with no reason; feed shows only followed sellers' active
+  listings; sizes outside the category's list and impossible deal options are refused by the API
+  (422 with field) and again by the database (23514).
+- Phase 8: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.
 
 ## 7. Content Security Policy (Phase 6b)
 Static policy in a header, no nonces (decision 2026-10-13): nonces force every page to render

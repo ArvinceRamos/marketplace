@@ -113,6 +113,9 @@ function AccountMenu() {
         <Link href="/my-listings" className={menuLink}>
           My listings
         </Link>
+        <Link href="/following" className={menuLink}>
+          Following
+        </Link>
         <Link href="/favorites" className={menuLink}>
           Saved items
         </Link>

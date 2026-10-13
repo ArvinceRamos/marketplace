@@ -2,7 +2,15 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Pages that need a signed-in user. The API checks again; this is only for UX.
-const PROTECTED = ["/profile", "/settings", "/sell", "/my-listings", "/favorites", "/inbox"];
+const PROTECTED = [
+  "/profile",
+  "/settings",
+  "/sell",
+  "/my-listings",
+  "/favorites",
+  "/following",
+  "/inbox",
+];
 const GUEST_ONLY = ["/login", "/register"];
 
 const matches = (path: string, prefixes: string[]) =>

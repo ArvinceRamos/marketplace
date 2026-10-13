@@ -12,15 +12,18 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.schemas.catalog import (
+    CategoryChild,
     CategoryNode,
     CategoryRef,
     CityRef,
     Condition,
+    Courier,
     ListingCard,
     ListingDetail,
     ListingImage,
     ListingPage,
     Location,
+    PaymentMethod,
     PublicProfile,
     SellerSummary,
     SortOrder,
@@ -37,7 +40,7 @@ _ORDER_BY = {
 
 CARD_COLUMNS = """
     l.id, l.title, l.price_centavos, l.condition::text as condition, l.status::text as status,
-    l.published_at, loc.id as city_id, loc.slug as city_slug, loc.city as city_name,
+    l.published_at, l.size, loc.id as city_id, loc.slug as city_slug, loc.city as city_name,
     p.username::text as username, p.display_name, p.avatar_path,
     (select i.thumb_path from app.listing_images i
       where i.listing_id = l.id order by i.position limit 1) as cover_thumb
@@ -82,6 +85,7 @@ def card_from_row(row: Any, urls: Urls) -> ListingCard:
             avatar_url=urls.avatar(row["avatar_path"]),
         ),
         published_at=row["published_at"],
+        size=row["size"],
     )
 
 
@@ -90,7 +94,13 @@ def card_from_row(row: Any, urls: Urls) -> ListingCard:
 
 async def category_tree(db: AsyncConnection) -> list[CategoryNode]:
     rows = await db.execute(
-        text("select id, parent_id, slug, name from app.categories order by sort_order, name")
+        text(
+            """select c.id, c.parent_id, c.slug, c.name,
+                      array(select o.value from app.size_options o
+                            where o.size_group = c.size_group
+                            order by o.sort_order) as sizes
+               from app.categories c order by c.sort_order, c.name"""
+        )
     )
     parents: dict[int, CategoryNode] = {}
     children: list[Any] = []
@@ -102,7 +112,7 @@ async def category_tree(db: AsyncConnection) -> list[CategoryNode]:
     for r in children:
         if r["parent_id"] in parents:
             parents[r["parent_id"]].children.append(
-                CategoryRef(id=r["id"], slug=r["slug"], name=r["name"])
+                CategoryChild(id=r["id"], slug=r["slug"], name=r["name"], sizes=r["sizes"])
             )
     return list(parents.values())
 
@@ -126,6 +136,11 @@ class SearchFilters:
     conditions: list[Condition] = field(default_factory=list)
     city: str | None = None
     seller_username: str | None = None
+    sizes: list[str] = field(default_factory=list)
+    payment_methods: list[PaymentMethod] = field(default_factory=list)
+    couriers: list[Courier] = field(default_factory=list)
+    # Feed: only sellers this user follows.
+    followed_by: uuid.UUID | None = None
     sort: SortOrder = SortOrder.newest
     page: int = 1
     page_size: int = 24
@@ -164,6 +179,21 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
     if f.seller_username:
         where.append("p.username = :seller")
         params["seller"] = f.seller_username
+    if f.sizes:
+        where.append("l.size = any(:sizes)")
+        params["sizes"] = f.sizes
+    if f.payment_methods:  # any of them
+        where.append("l.payment_methods && cast(:payment_methods as text[])")
+        params["payment_methods"] = [m.value for m in f.payment_methods]
+    if f.couriers:
+        where.append("l.couriers && cast(:couriers as text[])")
+        params["couriers"] = [c.value for c in f.couriers]
+    if f.followed_by:
+        where.append(
+            "l.seller_id in (select fo.followed_id from app.follows fo"
+            " where fo.follower_id = :follower)"
+        )
+        params["follower"] = f.followed_by
 
     # Relevance needs a query; without one, fall back to newest.
     sort = f.sort if (f.sort != SortOrder.relevance or f.q) else SortOrder.newest
@@ -190,7 +220,7 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
 
 _DETAIL_SQL = f"""
     select {CARD_COLUMNS}, l.seller_id, l.description, l.meetup, l.delivery,
-           l.deal_note, l.created_at, l.updated_at,
+           l.deal_note, l.payment_methods, l.couriers, l.created_at, l.updated_at,
            c.id as cat_id, c.slug as cat_slug, c.name as cat_name,
            pc.id as pcat_id, pc.slug as pcat_slug, pc.name as pcat_name
     {CARD_FROM}
@@ -237,6 +267,8 @@ async def listing_detail(
         meetup=row["meetup"],
         delivery=row["delivery"],
         deal_note=row["deal_note"],
+        payment_methods=row["payment_methods"],
+        couriers=row["couriers"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         is_owner=viewer_id is not None and row["seller_id"] == viewer_id,
@@ -270,7 +302,8 @@ _PROFILE_SQL = """
            p.created_at, loc.id as city_id, loc.slug as city_slug, loc.city as city_name,
            (select count(*) from app.listings l
              where l.seller_id = p.id and l.status = 'active'
-               and l.moderation = 'ok') as active_count
+               and l.moderation = 'ok') as active_count,
+           app.follower_count(p.id) as follower_count
     from app.profiles p
     left join app.locations loc on loc.id = p.city_id
     where p.username = :username
@@ -294,4 +327,5 @@ async def public_profile(db: AsyncConnection, username: str, urls: Urls) -> Publ
         city=city,
         joined_at=row["created_at"],
         active_listing_count=row["active_count"],
+        follower_count=row["follower_count"],
     )

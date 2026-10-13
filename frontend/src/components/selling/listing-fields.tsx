@@ -1,5 +1,16 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { SelectField, TextArea, TextField } from "@/components/ui/field";
-import { CONDITIONS, type CategoryNode, type ListingDetail, type Location } from "@/lib/catalog-types";
+import {
+  CONDITIONS,
+  COURIERS,
+  PAYMENT_METHODS,
+  type CategoryNode,
+  type ListingDetail,
+  type Location,
+} from "@/lib/catalog-types";
+import { COURIER_LABELS, PAYMENT_LABELS, sizesFor } from "@/lib/deal-options";
 import { CONDITION_HINTS, CONDITION_LABELS } from "@/lib/format";
 import { pesosInput, type FieldErrors } from "@/lib/selling";
 
@@ -11,6 +22,7 @@ type Props = {
 };
 
 const legendClass = "mb-1 text-small font-medium text-fg";
+const optionClass = "flex min-h-11 items-center gap-3 px-1 text-small";
 
 function FieldError({ id, error }: { id: string; error?: string }) {
   return error ? (
@@ -20,10 +32,36 @@ function FieldError({ id, error }: { id: string; error?: string }) {
   ) : null;
 }
 
-/** The listing's text fields. Uncontrolled: values are read from FormData on submit. */
+/**
+ * The listing's fields. Values are read from FormData on submit; the only state is what
+ * changes which fields show: the category (size list) and meetup/delivery (deal options).
+ */
 export function ListingFields({ categories, locations, initial, errors }: Props) {
+  const start = {
+    category: String(initial?.category.id ?? ""),
+    meetup: initial ? initial.meetup : true,
+    delivery: initial?.delivery ?? false,
+  };
+  const [category, setCategory] = useState(start.category);
+  const [meetup, setMeetup] = useState(start.meetup);
+  const [delivery, setDelivery] = useState(start.delivery);
+  const sizes = sizesFor(categories, category);
+  const box = useRef<HTMLDivElement>(null);
+
+  // The sell form calls form.reset() after a submit; follow it.
+  useEffect(() => {
+    const form = box.current?.closest("form");
+    const onReset = () => {
+      setCategory(start.category);
+      setMeetup(start.meetup);
+      setDelivery(start.delivery);
+    };
+    form?.addEventListener("reset", onReset);
+    return () => form?.removeEventListener("reset", onReset);
+  }, [start.category, start.meetup, start.delivery]);
+
   return (
-    <>
+    <div ref={box} className="contents">
       <TextField
         label="Title"
         name="title"
@@ -38,7 +76,8 @@ export function ListingFields({ categories, locations, initial, errors }: Props)
       <SelectField
         label="Category"
         name="category_id"
-        defaultValue={initial?.category.id ?? ""}
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
         error={errors.category_id}
         required
       >
@@ -55,6 +94,26 @@ export function ListingFields({ categories, locations, initial, errors }: Props)
           </optgroup>
         ))}
       </SelectField>
+
+      {sizes.length > 0 && (
+        <SelectField
+          // A new category brings a new size list, so start that list empty.
+          key={category}
+          label="Size (optional)"
+          name="size"
+          defaultValue={category === start.category ? (initial?.size ?? "") : ""}
+          hint="Buyers can filter by size."
+          error={errors.size}
+        >
+          <option value="">No size</option>
+          {sizes.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </SelectField>
+      )}
+      {sizes.length === 0 && errors.size && <FieldError id="field-size-error" error={errors.size} />}
 
       <fieldset
         className="flex flex-col gap-1"
@@ -128,26 +187,79 @@ export function ListingFields({ categories, locations, initial, errors }: Props)
         aria-describedby={errors.meetup ? "field-meetup-error" : undefined}
       >
         <legend className={legendClass}>How can buyers get it?</legend>
-        <label className="flex min-h-11 items-center gap-3 px-1 text-small">
+        <label className={optionClass}>
           <input
             type="checkbox"
             name="meetup"
-            defaultChecked={initial ? initial.meetup : true}
+            checked={meetup}
+            onChange={(e) => setMeetup(e.target.checked)}
             className="size-5 accent-accent"
           />
           Meetup
         </label>
-        <label className="flex min-h-11 items-center gap-3 px-1 text-small">
+        <label className={optionClass}>
           <input
             type="checkbox"
             name="delivery"
-            defaultChecked={initial?.delivery ?? false}
+            checked={delivery}
+            onChange={(e) => setDelivery(e.target.checked)}
             className="size-5 accent-accent"
           />
           Delivery (arranged with the buyer)
         </label>
         <FieldError id="field-meetup-error" error={errors.meetup} />
       </fieldset>
+
+      <fieldset
+        className="flex flex-col gap-1"
+        aria-describedby={`field-payment-hint${errors.payment_methods ? " field-payment-error" : ""}`}
+      >
+        <legend className={legendClass}>Payment you accept (optional)</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2">
+          {PAYMENT_METHODS.filter((m) => (m === "cod" ? delivery : m === "cash" ? meetup : true)).map(
+            (m) => (
+              <label key={m} className={optionClass}>
+                <input
+                  type="checkbox"
+                  name="payment_methods"
+                  value={m}
+                  defaultChecked={initial?.payment_methods.includes(m)}
+                  className="size-5 accent-accent"
+                />
+                {PAYMENT_LABELS[m]}
+              </label>
+            ),
+          )}
+        </div>
+        <p id="field-payment-hint" className="text-caption text-fg-muted">
+          Buyers pay you directly. Marketplace never handles money; never share a one-time PIN.
+        </p>
+        <FieldError id="field-payment-error" error={errors.payment_methods} />
+      </fieldset>
+
+      {delivery && (
+        <fieldset
+          className="flex flex-col gap-1"
+          aria-describedby={errors.couriers ? "field-couriers-error" : undefined}
+        >
+          <legend className={legendClass}>Couriers you use (optional)</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-2">
+            {COURIERS.map((c) => (
+              <label key={c} className={optionClass}>
+                <input
+                  type="checkbox"
+                  name="couriers"
+                  value={c}
+                  defaultChecked={initial?.couriers.includes(c)}
+                  className="size-5 accent-accent"
+                />
+                {COURIER_LABELS[c]}
+              </label>
+            ))}
+          </div>
+          <FieldError id="field-couriers-error" error={errors.couriers} />
+        </fieldset>
+      )}
 
       <TextField
         label="Meetup or delivery note (optional)"
@@ -158,6 +270,6 @@ export function ListingFields({ categories, locations, initial, errors }: Props)
         hint="A public place is safest."
         error={errors.deal_note}
       />
-    </>
+    </div>
   );
 }

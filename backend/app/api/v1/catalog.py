@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
+from pydantic import StringConstraints
 
 from app.core.db import Db
 from app.core.errors import AppError
@@ -12,9 +13,11 @@ from app.core.security import Claims, optional_claims, user_id
 from app.schemas.catalog import (
     CategoryNode,
     Condition,
+    Courier,
     ListingDetail,
     ListingPage,
     Location,
+    PaymentMethod,
     PublicProfile,
     SortOrder,
 )
@@ -28,6 +31,7 @@ Slug = Annotated[str, Query(pattern=r"^[a-z0-9-]{2,60}$")]
 UsernamePath = Annotated[str, Path(pattern=r"^[A-Za-z0-9_.]{3,30}$")]
 Page = Annotated[int, Query(ge=1, le=50)]
 PageSize = Annotated[int, Query(ge=1, le=48)]
+SizeValue = Annotated[str, StringConstraints(min_length=1, max_length=20)]
 
 
 def _urls(request: Request) -> Urls:
@@ -54,6 +58,9 @@ async def search(
     max_price: Annotated[int | None, Query(ge=0, le=MAX_PESOS)] = None,
     condition: Annotated[list[Condition] | None, Query()] = None,
     city: Slug | None = None,
+    size: Annotated[list[SizeValue] | None, Query(max_length=15)] = None,
+    payment: Annotated[list[PaymentMethod] | None, Query(max_length=5)] = None,
+    courier: Annotated[list[Courier] | None, Query(max_length=5)] = None,
     sort: SortOrder = SortOrder.newest,
     page: Page = 1,
     page_size: PageSize = 24,
@@ -68,6 +75,9 @@ async def search(
         max_price_centavos=None if max_price is None else max_price * 100,
         conditions=condition or [],
         city=city,
+        sizes=size or [],
+        payment_methods=payment or [],
+        couriers=courier or [],
         sort=sort,
         page=page,
         page_size=page_size,

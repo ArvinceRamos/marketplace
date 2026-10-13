@@ -7,6 +7,7 @@ import { Container, Stack } from "@/components/ui/layout";
 import { TextLink } from "@/components/ui/text-link";
 import { getListingOr404 } from "@/lib/catalog";
 import type { ListingDetail } from "@/lib/catalog-types";
+import { COURIER_LABELS, PAYMENT_LABELS } from "@/lib/deal-options";
 import { CONDITION_HINTS, CONDITION_LABELS, formatDate, formatPrice } from "@/lib/format";
 
 type Props = PageProps<"/listing/[id]">;
@@ -55,6 +56,12 @@ async function ListingContent({ params }: Pick<Props, "params">) {
                 {CONDITION_HINTS[listing.condition]}
               </span>
             </dd>
+            {listing.size && (
+              <>
+                <dt className="text-fg-muted">Size</dt>
+                <dd className="font-medium">{listing.size}</dd>
+              </>
+            )}
             <dt className="text-fg-muted">Category</dt>
             <dd>
               <TextLink href={`/categories/${listing.category.slug}`}>
@@ -68,6 +75,18 @@ async function ListingContent({ params }: Pick<Props, "params">) {
                 <span className="block text-caption text-fg-muted">{listing.deal_note}</span>
               )}
             </dd>
+            {listing.payment_methods.length > 0 && (
+              <>
+                <dt className="text-fg-muted">Payment</dt>
+                <dd>{listing.payment_methods.map((m) => PAYMENT_LABELS[m]).join(", ")}</dd>
+              </>
+            )}
+            {listing.couriers.length > 0 && (
+              <>
+                <dt className="text-fg-muted">Ships via</dt>
+                <dd>{listing.couriers.map((c) => COURIER_LABELS[c]).join(", ")}</dd>
+              </>
+            )}
           </dl>
 
           <SellerCard listing={listing} />

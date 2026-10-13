@@ -1,6 +1,6 @@
 # Database Schema
 
-Last updated: 2026-10-10 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`. Deals and reviews are still design only.
+Last updated: 2026-10-13 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`; later phases added migrations up to `20261013000300` (Phase 7: sizes, deal options, follows). Deals and reviews are still design only.
 
 All app tables live in schema `app` (not exposed by the Supabase Data API). RLS is enabled on
 every table. IDs are UUIDs (`gen_random_uuid()`) unless noted. Every table has `created_at`;
@@ -20,6 +20,8 @@ editable tables also have `updated_at` (set by a trigger).
 | `offers` | MVP | Own table (not just a message) because it has a state machine |
 | `reports` | MVP | Listing or user reports, moderation status |
 | `blocked_users` | MVP | Who blocked whom |
+| `size_options` | Phase 7 | Fixed size lists (clothing, shoes, kids); reference data |
+| `follows` | Phase 7 | Who follows which seller; private to the follower |
 | `deals` | Later | The "transactions" entity: a completed deal confirmed by **both** sides |
 | `reviews` | Later | One per deal per side |
 | admin role | Later | Not a table: `auth.users.app_metadata.role = 'admin'`, set only by SQL/server |
@@ -46,6 +48,8 @@ erDiagram
   OFFERS |o--o{ MESSAGES : "announced by"
   PROFILES ||--o{ REPORTS : files
   PROFILES ||--o{ BLOCKED_USERS : "blocker / blocked"
+  PROFILES ||--o{ FOLLOWS : "follower / followed"
+  SIZE_OPTIONS }o--o{ CATEGORIES : "size_group"
   OFFERS ||--o| DEALS : "may become (later)"
   DEALS ||--o{ REVIEWS : "max 2 (later)"
 
@@ -73,6 +77,9 @@ erDiagram
     boolean meetup
     boolean delivery
     text deal_note
+    text size
+    text_array payment_methods
+    text_array couriers
     timestamptz published_at
     timestamptz sold_at
     timestamptz deleted_at
@@ -139,6 +146,7 @@ erDiagram
 - `id int PK`, `parent_id int null references categories`, `slug text unique`, `name text`,
   `sort_order smallint`, `is_active boolean`
 - Listings must use a **leaf** category (checked by trigger).
+- `size_group text null` (Phase 7): `clothing`, `shoes`, `kids`, or null (no sizes). Set in `seed.sql`.
 - Read-only for everyone.
 
 ### listings
@@ -149,6 +157,10 @@ erDiagram
 - `status listing_status default 'draft'`; `published_at`, `sold_at`, `deleted_at`
 - `search tsvector generated always as (setweight(to_tsvector('simple', title),'A') || setweight(to_tsvector('simple', description),'B')) stored`
 - Check: `status = 'active'` requires `published_at is not null`.
+- Phase 7: `size text null` must be on the category's `size_options` list (trigger
+  `listings_size_check`). `payment_methods text[]` ⊆ {gcash, maya, bank_transfer, cash, cod} and
+  `couriers text[]` ⊆ {jnt, flash, lbc, lalamove, grab}, no duplicates (`app.array_is_distinct`).
+  Checks: couriers and `cod` need `delivery`; `cash` needs `meetup`. Labels only (no payments).
 - **Soft delete:** `status = 'deleted'` + `deleted_at`. Keeps chats and offers meaningful.
   Photos are removed from Storage right away. A later cleanup job may hard-delete after 30 days.
 
@@ -197,6 +209,16 @@ erDiagram
 ### blocked_users
 - PK `(blocker_id, blocked_id)`, check `blocker_id <> blocked_id`.
 
+### size_options (Phase 7)
+- PK `(size_group, value)`, `sort_order`. Clothing XXS–4XL + Free size; shoes EU 35–47;
+  kids 0-6 months … 13-14 years. Read-only for everyone.
+
+### follows (Phase 7)
+- PK `(follower_id, followed_id)`, both FKs `on delete cascade`; check not self; `created_at` set by trigger.
+- Trigger `follows_guard`: no follow across a block (either side, `42501`); max 1,000 per follower.
+- Trigger `blocks_end_follows` (definer) on `blocked_users` insert: deletes follows both ways.
+- `app.follower_count(profile)` (definer, stable): public count without exposing who follows.
+
 ### deals and reviews (later)
 - `deals`: `offer_id unique`, `listing_id`, `buyer_id`, `seller_id`, `status` (`awaiting_confirmation`, `completed`, `cancelled`),
   `buyer_confirmed_at`, `seller_confirmed_at`. Completed only when both are set.
@@ -220,6 +242,8 @@ erDiagram
 | `offers (conversation_id, created_at)`, partial unique pending | history, one pending |
 | `reports (status, created_at)` | future moderation queue |
 | `blocked_users (blocked_id)` | "am I blocked?" checks |
+| `listings (category_id, size) where size is not null` | size filter |
+| `follows (followed_id)` | follower counts, cascade (the PK serves the feed) |
 
 ## 6. RLS policy matrix
 `me` = `(select auth.uid())`. All policies are `TO authenticated` unless they say `anon`.
@@ -237,6 +261,8 @@ erDiagram
 | offers | participant | `buyer_id = me`, listing active | buyer: pending→withdrawn; seller: pending→accepted/rejected (plus trigger) | — |
 | reports | `reporter_id = me` | `reporter_id = me` | — | — |
 | blocked_users | `blocker_id = me` | `blocker_id = me` | — | `blocker_id = me` |
+| size_options | anon + auth: all | — | — | — |
+| follows | `follower_id = me` | `follower_id = me` (+ guard trigger) | — | `follower_id = me` |
 
 Storage (`storage.objects`, bucket `listing-images` and `avatars`): public read; INSERT/UPDATE/DELETE
 only when `(storage.foldername(name))[1] = me::text`.
@@ -255,7 +281,7 @@ Source: https://supabase.com/docs/guides/database/postgres/row-level-security (c
 |---|---|
 | Seller deletes listing | `status = deleted`, `deleted_at` set; images removed from Storage; favorites rows stay but the listing is no longer visible, so it drops out of Saved items; pending offers → expired; chats stay readable |
 | Listing marked sold | pending offers → expired; new offers blocked; chat continues |
-| User deletes account | Auth user deleted → profile cascade → listings (and the chats/offers about them), images, favorites, blocks, own reports deleted. Chats where they were the buyer stay for the seller with `buyer_id`/`sender_id` set null ("Deleted user"). Reports about them keep the row with the target set null. Tested in `test_account_deletion.py` |
+| User deletes account | Auth user deleted → profile cascade → listings (and the chats/offers about them), images, favorites, blocks, follows (both directions), own reports deleted. Chats where they were the buyer stay for the seller with `buyer_id`/`sender_id` set null ("Deleted user"). Reports about them keep the row with the target set null. Tested in `test_account_deletion.py` |
 | Admin hides listing (later) | `moderation = hidden`; only owner sees it, with a notice |
 
 ## 8. Seed data (local only)

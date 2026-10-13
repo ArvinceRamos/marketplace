@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { Avatar } from "@/components/catalog/avatar";
 import { EmptyState } from "@/components/catalog/empty-state";
 import { ListingGrid, ListingGridSkeleton } from "@/components/catalog/listing-grid";
+import { FollowButton } from "@/components/follow-button";
 import { UserSafetyMenu } from "@/components/safety/user-safety-menu";
 import { Pagination } from "@/components/catalog/pagination";
 import { Container, Stack } from "@/components/ui/layout";
@@ -47,6 +48,7 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
           </div>
           <p className="text-small text-fg-muted">{details.join(" · ")}</p>
           {profile.bio && <p className="max-w-2xl text-body">{profile.bio}</p>}
+          <FollowButton username={profile.username} followers={profile.follower_count} />
         </Stack>
       </section>
       <section aria-labelledby="seller-listings" className="flex flex-col gap-4">

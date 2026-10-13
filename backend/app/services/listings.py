@@ -41,6 +41,9 @@ _EDITABLE = (
     "meetup",
     "delivery",
     "deal_note",
+    "size",
+    "payment_methods",
+    "couriers",
 )
 _CASTS = {"condition": "cast(:condition as app.listing_condition)"}
 
@@ -53,7 +56,8 @@ async def _lock_own(db: AsyncConnection, listing_id: uuid.UUID, uid: uuid.UUID) 
         (
             await db.execute(
                 text(
-                    """select id, status::text as status, meetup, delivery
+                    """select id, status::text as status, meetup, delivery, category_id, size,
+                              payment_methods, couriers
                        from app.listings
                        where id = :id and seller_id = :uid and status <> 'deleted'
                        for update"""
@@ -100,22 +104,62 @@ async def _check_refs(db: AsyncConnection, category_id: int | None, city_id: int
         raise AppError(422, "validation_error", "Some fields are invalid.", fields)
 
 
+async def _check_size(db: AsyncConnection, category_id: int, size: str | None) -> None:
+    """The size must be on the category's list (the database checks this again)."""
+    if size is None:
+        return
+    sizes = (
+        await db.execute(
+            text(
+                """select o.value from app.categories c
+                   join app.size_options o on o.size_group = c.size_group
+                   where c.id = :id"""
+            ),
+            {"id": category_id},
+        )
+    ).scalars()
+    allowed = set(sizes)
+    if size not in allowed:
+        message = "Pick a size from the list." if allowed else "This category has no sizes."
+        raise AppError(422, "validation_error", "Some fields are invalid.", {"size": message})
+
+
+def _check_deal_options(
+    meetup: bool, delivery: bool, payment_methods: list[str], couriers: list[str]
+) -> None:
+    """Same rules as the listings_* check constraints, with field-level messages."""
+    fields: dict[str, str] = {}
+    if not (meetup or delivery):
+        fields["meetup"] = "Choose meetup, delivery, or both."
+    if not delivery and "cod" in payment_methods:
+        fields["payment_methods"] = "Cash on delivery needs delivery."
+    if not meetup and "cash" in payment_methods:
+        fields["payment_methods"] = "Cash in person needs a meetup."
+    if not delivery and couriers:
+        fields["couriers"] = "Couriers need delivery."
+    if fields:
+        raise AppError(422, "validation_error", "Some fields are invalid.", fields)
+
+
 # --- listing fields ----------------------------------------------------------------
 
 
 async def create_listing(db: AsyncConnection, uid: uuid.UUID, body: ListingCreate) -> uuid.UUID:
     await _check_refs(db, body.category_id, body.city_id)
+    await _check_size(db, body.category_id, body.size)
+    values = body.model_dump(mode="json")
+    _check_deal_options(body.meetup, body.delivery, values["payment_methods"], values["couriers"])
     row = await db.execute(
         text(
             """insert into app.listings
                  (seller_id, category_id, city_id, title, description, price_centavos,
-                  condition, meetup, delivery, deal_note)
+                  condition, meetup, delivery, deal_note, size, payment_methods, couriers)
                values (:uid, :category_id, :city_id, :title, :description, :price_centavos,
                        cast(:condition as app.listing_condition), :meetup, :delivery,
-                       :deal_note)
+                       :deal_note, :size, :payment_methods, :couriers)
                returning id"""
         ),
-        {"uid": uid, **body.model_dump()},
+        {"uid": uid, **values},
     )
     return row.scalar_one()
 
@@ -124,17 +168,20 @@ async def update_listing(
     db: AsyncConnection, uid: uuid.UUID, listing_id: uuid.UUID, body: ListingUpdate
 ) -> None:
     current = await _lock_own(db, listing_id, uid)
-    changes = body.model_dump(exclude_unset=True)
+    changes = body.model_dump(mode="json", exclude_unset=True)
     await _check_refs(db, changes.get("category_id"), changes.get("city_id"))
-    meetup = changes.get("meetup", current["meetup"])
-    delivery = changes.get("delivery", current["delivery"])
-    if not (meetup or delivery):
-        raise AppError(
-            422,
-            "validation_error",
-            "Some fields are invalid.",
-            {"meetup": "Choose meetup, delivery, or both."},
+    if "size" in changes or "category_id" in changes:
+        await _check_size(
+            db,
+            changes.get("category_id", current["category_id"]),
+            changes.get("size", current["size"]),
         )
+    _check_deal_options(
+        changes.get("meetup", current["meetup"]),
+        changes.get("delivery", current["delivery"]),
+        changes.get("payment_methods", current["payment_methods"]),
+        changes.get("couriers", current["couriers"]),
+    )
     columns = [c for c in _EDITABLE if c in changes]
     if not columns:
         return

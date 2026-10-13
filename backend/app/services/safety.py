@@ -22,7 +22,8 @@ _USER_GONE = AppError(404, "user_not_found", "This user does not exist.")
 _LISTING_GONE = AppError(404, "listing_not_found", "This listing is not available.")
 
 
-async def _user_id(db: AsyncConnection, username: str) -> uuid.UUID:
+async def user_id_for(db: AsyncConnection, username: str) -> uuid.UUID:
+    """A profile ID by username, or 404. Usernames are public; IDs never leave the API."""
     found = (
         await db.execute(text("select id from app.profiles where username = :u"), {"u": username})
     ).scalar_one_or_none()
@@ -90,7 +91,7 @@ async def create_report(
             raise AppError(422, "cannot_report_self", "You can't report your own listing.")
         listing_id = body.listing_id
     else:
-        reported_user = await _user_id(db, body.username or "")  # set: ReportCreate checks
+        reported_user = await user_id_for(db, body.username or "")  # set: ReportCreate checks
         if reported_user == uid:
             raise AppError(422, "cannot_report_self", "You can't report yourself.")
 
@@ -144,7 +145,7 @@ async def my_reports(
 
 
 async def block(db: AsyncConnection, uid: uuid.UUID, username: str) -> None:
-    other = await _user_id(db, username)
+    other = await user_id_for(db, username)
     if other == uid:
         raise AppError(422, "cannot_block_self", "You can't block yourself.")
     await db.execute(
@@ -157,7 +158,7 @@ async def block(db: AsyncConnection, uid: uuid.UUID, username: str) -> None:
 
 
 async def unblock(db: AsyncConnection, uid: uuid.UUID, username: str) -> None:
-    other = await _user_id(db, username)
+    other = await user_id_for(db, username)
     await db.execute(
         text("delete from app.blocked_users where blocker_id = :uid and blocked_id = :other"),
         {"uid": uid, "other": other},

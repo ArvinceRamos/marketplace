@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -213,14 +214,41 @@ async def _create_sellers(db: asyncpg.Connection, http: httpx2.Client) -> list[u
     return ids
 
 
+def _size(category: str, title: str, n: int) -> str | None:
+    """A size that matches the title when it names one (fake data, local only)."""
+    if category in ("womens-fashion", "mens-fashion"):
+        found = re.search(r"\bsize (XXS|XS|S|M|L|XL|XXL)\b", title)
+        return found.group(1) if found else ("S", "M", "L")[n % 3]
+    if category == "shoes":
+        if found := re.search(r"\bEU (\d{2})\b", title):
+            return f"EU {found.group(1)}"
+        if found := re.search(r"\bUS (\d{1,2})\b", title):
+            return f"EU {int(found.group(1)) + 33}"  # rough men's US -> EU
+        return f"EU {37 + n % 6}"
+    if category == "kids-clothing":
+        return ("1-2 years", "3-4 years", "5-6 years")[n % 3]
+    return None
+
+
+def _deal_options(meetup: bool, delivery: bool, n: int) -> tuple[list[str], list[str]]:
+    payments = ["gcash"] + (["maya"] if n % 2 == 0 else []) + (["cash"] if meetup else [])
+    if delivery and n % 3 == 0:
+        payments.append("cod")
+    couriers = [["jnt"], ["jnt", "flash"], ["lalamove", "grab"], ["lbc"]][n % 4] if delivery else []
+    return payments, couriers
+
+
 async def _create_listing(db, http, seller_ids, parents, n, row) -> None:
     (seller, category, title, pesos, condition, city, meetup, delivery, note, status, desc) = row
     seller_id = seller_ids[seller]
+    payments, couriers = _deal_options(meetup, delivery, n)
     listing_id = await db.fetchval(
         """insert into app.listings (seller_id, category_id, city_id, title, description,
-             price_centavos, condition, meetup, delivery, deal_note)
+             price_centavos, condition, meetup, delivery, deal_note, size, payment_methods,
+             couriers)
            values ($1, (select id from app.categories where slug = $2),
-                   (select id from app.locations where slug = $3), $4, $5, $6, $7, $8, $9, $10)
+                   (select id from app.locations where slug = $3), $4, $5, $6, $7, $8, $9, $10,
+                   $11, $12, $13)
            returning id""",
         seller_id,
         category,
@@ -232,6 +260,9 @@ async def _create_listing(db, http, seller_ids, parents, n, row) -> None:
         meetup,
         delivery,
         note,
+        _size(category, title, n),
+        payments,
+        couriers,
     )
     photos = 1 + n % 3
     for pos in range(photos):

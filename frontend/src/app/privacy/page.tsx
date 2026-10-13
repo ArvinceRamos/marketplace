@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong className="font-semibold">What you post:</strong> listings, photos, chat messages,
-            offers, saved items, reports, and the people you block.
+            offers, saved items, reports, the people you block, and the sellers you follow.
           </li>
           <li>
             <strong className="font-semibold">Technical data:</strong> sign-in cookies, and your IP
@@ -54,9 +54,10 @@ export default function PrivacyPage() {
 
       <InfoSection id="public" title="What other people can see">
         <InfoText>
-          Anyone can see your username, display name, bio, photo, city, join date, and your listings
-          (except drafts). Your email address is never shown. Chats and offers are only visible to the
-          two people in them.
+          Anyone can see your username, display name, bio, photo, city, join date, number of
+          followers, and your listings (except drafts). Who you follow, and who follows you, is not
+          shown. Your email address is never shown. Chats and offers are only visible to the two
+          people in them.
         </InfoText>
       </InfoSection>
 
@@ -71,7 +72,7 @@ export default function PrivacyPage() {
       <InfoSection id="keep" title="How long we keep it">
         <InfoText>
           We keep your data while your account is open. When you delete your account, we delete your
-          profile, photos, listings (and the chats about them), saved items, blocks, and your reports.
+          profile, photos, listings (and the chats about them), saved items, blocks, follows, and your reports.
           Messages you sent in other people&apos;s listings stay in their chat, shown as from a
           &ldquo;Deleted user&rdquo;. Hosting providers keep server logs for a short time.
         </InfoText>
