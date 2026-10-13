@@ -7,6 +7,7 @@
   at the end of the session.
 """
 
+import asyncio
 import json
 import os
 import secrets
@@ -135,7 +136,36 @@ class Users:
             timeout=10,
         )
 
+    def remove_files(self) -> None:
+        """Delete test users' Storage files. Auth deletes a user even when they still own
+        files, and the files stay behind, so they must be removed explicitly."""
+
+        async def names() -> list[tuple[str, str]]:
+            conn = await asyncpg.connect(self.stack.admin_dsn)
+            try:
+                rows = await conn.fetch(
+                    "select bucket_id, name from storage.objects "
+                    "where split_part(name, '/', 1) = any($1::text[])",
+                    [str(uid) for uid in self.created],
+                )
+                return [(r["bucket_id"], r["name"]) for r in rows]
+            finally:
+                await conn.close()
+
+        by_bucket: dict[str, list[str]] = {}
+        for bucket, name in asyncio.run(names()):
+            by_bucket.setdefault(bucket, []).append(name)
+        for bucket, paths in by_bucket.items():
+            httpx2.request(
+                "DELETE",
+                f"{self.stack.api_url}/storage/v1/object/{bucket}",
+                headers=self._admin_headers(),
+                json={"prefixes": paths},
+                timeout=30,
+            ).raise_for_status()
+
     def cleanup(self) -> None:
+        self.remove_files()
         # Fail loudly: a user that cannot be deleted is a real bug (account deletion).
         failed = [
             uid for uid in self.created if self.delete(uid).status_code not in (200, 204, 404)

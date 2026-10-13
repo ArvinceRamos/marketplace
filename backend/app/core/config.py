@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     # Supabase project URL. Tokens are verified against its public keys (JWKS).
     supabase_url: str = "http://127.0.0.1:54421"
+    # Public by design (same value the browser uses). Sent as `apikey` to Storage
+    # together with the caller's own token, so Storage policies still apply.
+    supabase_publishable_key: str = ""
     jwt_audience: str = "authenticated"
     # Connection string for the `api_app` role (no RLS bypass). Required for DB routes.
     database_url: str | None = None
@@ -34,6 +37,10 @@ class Settings(BaseSettings):
     @property
     def jwks_url(self) -> str:
         return f"{self.jwt_issuer}/.well-known/jwks.json"
+
+    @property
+    def storage_api_url(self) -> str:
+        return f"{self.supabase_url.rstrip('/')}/storage/v1"
 
     @property
     def public_storage_url(self) -> str:

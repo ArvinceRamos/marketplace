@@ -1,14 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
+import { ButtonLink } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
 type State = "loading" | "guest" | "user";
 
 export function AuthNav() {
-  const router = useRouter();
   const [state, setState] = useState<State>("loading");
 
   useEffect(() => {
@@ -20,16 +19,14 @@ export function AuthNav() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  async function signOut() {
-    await createClient().auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
-
   if (state === "loading") return <div className="h-11 w-36" aria-hidden />;
   if (state === "guest") {
     return (
       <nav aria-label="Account" className="flex items-center gap-2">
+        {/* Phones: no room; the sell page asks guests to log in anyway. */}
+        <ButtonLink href="/sell" variant="secondary" className="max-sm:hidden">
+          Sell
+        </ButtonLink>
         <ButtonLink href="/login" variant="ghost">
           Log in
         </ButtonLink>
@@ -38,13 +35,16 @@ export function AuthNav() {
     );
   }
   return (
-    <nav aria-label="Account" className="flex items-center gap-2">
+    <nav aria-label="Account" className="flex items-center gap-1 sm:gap-2">
+      <ButtonLink href="/sell">Sell</ButtonLink>
+      {/* Phones: these two are on the profile page instead. */}
+      <ButtonLink href="/my-listings" variant="ghost" className="max-sm:hidden">
+        My listings
+      </ButtonLink>
       <ButtonLink href="/profile" variant="ghost">
         Profile
       </ButtonLink>
-      <Button variant="ghost" onClick={signOut}>
-        Log out
-      </Button>
+      <SignOutButton className="max-sm:hidden" />
     </nav>
   );
 }

@@ -24,7 +24,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const { data } = await createClient().auth.getSession();
   const headers = new Headers(init.headers);
   if (data.session) headers.set("Authorization", `Bearer ${data.session.access_token}`);
-  if (init.body) headers.set("Content-Type", "application/json");
+  // FormData (photo uploads) sets its own multipart Content-Type with a boundary.
+  if (typeof init.body === "string") headers.set("Content-Type", "application/json");
 
   let res: Response;
   try {

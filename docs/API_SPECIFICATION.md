@@ -61,8 +61,13 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 | POST | `/listings` | 🔒 | create draft |
 | PATCH | `/listings/{id}` | 🔒 owner | edit fields (not status) |
 | POST | `/listings/{id}/status` | 🔒 owner | `{status: active|paused|sold}`; transitions per USER_FLOWS §3; publish requires ≥1 image |
-| DELETE | `/listings/{id}` | 🔒 owner | soft delete; 204 |
-| GET | `/me/listings?status=active` | 🔒 | own listings by status |
+| DELETE | `/listings/{id}` | 🔒 owner | soft delete; 204; photos removed from Storage after commit |
+| GET | `/me/listings?status=active` | 🔒 | own listings by status (`draft`, `active`, `paused`, `sold`), newest change first, paginated |
+
+Seller rules (Phase 4): another user's listing, or a deleted one, is 404 for every seller action.
+Create/edit bodies reject unknown fields (`seller_id`, `status`, …) with 422. A parent category or
+unknown city is 422 with a field message. Status errors: 409 `invalid_status_change`, 409
+`listing_needs_photo`. Repeating the current status is a no-op (200).
 
 `GET /listings` query:
 | Param | Type | Rule |
@@ -96,9 +101,12 @@ Search `q` matches title and description words, partial titles, and category nam
 ### Listing images
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/listings/{id}/images` | 🔒 owner | multipart `files[]`; total ≤ 8; each ≤ 8 MB; JPEG/PNG/WebP by content |
-| PATCH | `/listings/{id}/images/order` | 🔒 owner | `{image_ids: [...]}` full order |
-| DELETE | `/listings/{id}/images/{image_id}` | 🔒 owner | cannot delete last image of an active listing (409) |
+| POST | `/listings/{id}/images` | 🔒 owner | multipart field `files` (1–8); total ≤ 8 (409 `too_many_photos`); each ≤ 8 MB (413 `file_too_large`); JPEG/PNG/WebP by content (422 `unsupported_image` / `invalid_image` / `image_too_large`); one bad file stores nothing. Returns the listing detail |
+| PATCH | `/listings/{id}/images/order` | 🔒 owner | `{image_ids: [...]}` every photo exactly once (422 `image_order_mismatch`); first = cover. Returns detail |
+| DELETE | `/listings/{id}/images/{image_id}` | 🔒 owner | 409 `last_photo` for the last photo of an active listing; positions are repacked. Returns detail |
+
+Body size limits: JSON 64 KB, multipart 64.25 MB. A larger `Content-Length` gets 413
+`payload_too_large` before the body is read; a chunked body that goes over is cut off (400).
 
 ### Favorites
 | Method | Path | Auth | Notes |

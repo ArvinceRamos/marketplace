@@ -52,7 +52,8 @@ stateDiagram-v2
   deleted --> [*]
 ```
 Steps on `/sell`:
-1. Photos first (1–8; JPEG/PNG/WebP; drag to reorder; first photo is the cover).
+1. Photos first (1–8; JPEG/PNG/WebP; "move earlier/later" buttons instead of drag and drop, so
+   touch, keyboard, and screen readers work the same; first photo is the cover).
 2. Title, category → subcategory, condition, price, city, description, meetup or delivery note.
 3. Save draft or Publish. Validation errors appear next to each field.
 

@@ -46,6 +46,7 @@ class Location(BaseModel):
 
 
 class CityRef(BaseModel):
+    id: int
     slug: str
     name: str
 

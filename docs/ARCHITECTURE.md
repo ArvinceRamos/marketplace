@@ -163,7 +163,7 @@ flowchart LR
   A[Browser picks files] -->|multipart| B[FastAPI /listings/id/images]
   B --> C{Checks: owner? ≤8 total? ≤8 MB? Pillow can open it? JPEG/PNG/WebP by content?}
   C -->|fail| D[422 with reason]
-  C -->|ok| E[Re-encode to WebP, max 1600px, strip EXIF/GPS; also 400px thumbnail]
+  C -->|ok| E[Re-encode to WebP, max 1600px, strip EXIF/GPS; also 600px thumbnail]
   E --> F[Upload to Storage with the user's token]
   F --> G[Insert listing_images row]
 ```
@@ -175,6 +175,11 @@ flowchart LR
 - Bucket `listing-images` is **public-read** (listing photos are public anyway). Writes require a
   token whose user ID matches the first folder of the path (`<user_id>/<listing_id>/<file>.webp`).
 - Bucket rules: only `image/webp`, max 2 MB per stored file.
+- Built in Phase 4 (`app/services/images.py`, `storage.py`): photos are rotated upright from EXIF
+  first, then re-encoded with no EXIF/XMP/ICC. JPEGs larger than needed decode at reduced scale to
+  save memory. Files go to `<user_id>/<listing_id>/<random>-full|thumb.webp` using the seller's own
+  token plus the public publishable key (no secret key). If the database step fails, the uploaded
+  files are removed; deleted photos are removed from Storage after the commit.
 
 Sources: https://supabase.com/docs/guides/storage/security/access-control ·
 https://supabase.com/docs/guides/storage/buckets/fundamentals ·

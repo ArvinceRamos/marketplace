@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { FormAlert } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -61,9 +62,13 @@ export function ProfileView() {
         <dt className="text-fg-muted">Joined</dt>
         <dd className="mb-2 sm:mb-0">{new Date(me.created_at).toLocaleDateString("en-PH", { dateStyle: "medium" })}</dd>
       </dl>
-      <ButtonLink href="/profile/edit" className="w-fit">
-        Edit profile
-      </ButtonLink>
+      <div className="flex flex-wrap gap-2">
+        <ButtonLink href="/profile/edit">Edit profile</ButtonLink>
+        <ButtonLink href="/my-listings" variant="secondary">
+          My listings
+        </ButtonLink>
+        <SignOutButton variant="secondary" />
+      </div>
     </div>
   );
 }

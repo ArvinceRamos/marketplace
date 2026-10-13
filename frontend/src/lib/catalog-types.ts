@@ -15,7 +15,7 @@ export type Sort = (typeof SORTS)[number];
 export type CategoryRef = { id: number; slug: string; name: string };
 export type CategoryNode = CategoryRef & { children: CategoryRef[] };
 export type Location = { id: number; slug: string; city: string; province: string; region: string };
-export type CityRef = { slug: string; name: string };
+export type CityRef = { id: number; slug: string; name: string };
 
 export type ListingCard = {
   id: string;

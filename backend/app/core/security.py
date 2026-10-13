@@ -82,5 +82,16 @@ async def require_claims(claims: Annotated[Claims | None, Depends(optional_claim
     return claims
 
 
+async def access_token(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    _: Annotated[Claims, Depends(require_claims)],
+) -> str:
+    """The caller's raw token, only after it was verified. Forwarded to Supabase
+    Storage so its own policies check the same identity."""
+    if creds is None:  # unreachable: require_claims already rejected guests
+        raise _INVALID
+    return creds.credentials
+
+
 def user_id(claims: Claims) -> uuid.UUID:
     return uuid.UUID(str(claims["sub"]))

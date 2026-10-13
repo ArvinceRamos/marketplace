@@ -56,7 +56,8 @@ Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls imple
 
 ## 4. Account deletion (PH Data Privacy Act)
 1. User types their username to confirm.
-2. API deletes their Storage objects (with the user's own token).
+2. API deletes their Storage objects (with the user's own token). **Required:** Auth deletes a
+   user even when they still own files, and the files then stay behind (checked locally 2026-10-13).
 3. API calls the Auth admin "delete user" endpoint with the secret key (the one RLS bypass, logged).
 4. Database cascades remove profile, listings (with chats and offers about them), images,
    favorites, blocks, and own reports. Chats where they were the buyer stay for the seller,
@@ -80,7 +81,9 @@ and a counterfeit/IP report reason.
 
 ## 6. Security checks per phase
 - Phase 2: RLS tests for every table and action (allowed + denied).
-- Phase 4: upload attack tests (T6–T8).
+- Phase 4: upload attack tests (T6–T8). Done 2026-10-13: renamed scripts, truncated JPEG, GIF,
+  60-megapixel PNG bomb, 9 MB file, oversized and chunked bodies, 9th photo, GPS EXIF gone from
+  stored files, strangers get 404 on every seller action. Rate limits (T11) are **not built yet**.
 - Phase 5: participant, offer, and block tests (T3–T5).
 - Phase 6: run `/security-review` on the branch; fix findings; review headers/CSP.
 - Phase 7: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.

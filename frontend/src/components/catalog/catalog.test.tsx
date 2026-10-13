@@ -12,7 +12,7 @@ const listing: Card = {
   price_centavos: 2350000,
   condition: "lightly_used",
   status: "sold",
-  city: { slug: "makati", name: "Makati" },
+  city: { id: 5, slug: "makati", name: "Makati" },
   cover_thumb_url: "http://127.0.0.1:54421/storage/v1/object/public/listing-images/a/b-thumb.webp",
   seller: { username: "migs", display_name: "Miguel", avatar_url: null },
   published_at: "2026-10-10T00:00:00Z",

@@ -1,4 +1,8 @@
-import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type {
+  InputHTMLAttributes,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 
 type Base = { label: string; name: string; error?: string; hint?: string };
 
@@ -80,6 +84,35 @@ export function TextArea({
         className={`${inputClass} min-h-28`}
         {...rest}
       />
+      <Messages id={id} error={error} hint={hint} />
+    </div>
+  );
+}
+
+export function SelectField({
+  label,
+  name,
+  error,
+  hint,
+  children,
+  ...rest
+}: Base & SelectHTMLAttributes<HTMLSelectElement>) {
+  const id = `field-${name}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
+      <select
+        id={id}
+        name={name}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, error, hint)}
+        className={`${inputClass} min-h-11`}
+        {...rest}
+      >
+        {children}
+      </select>
       <Messages id={id} error={error} hint={hint} />
     </div>
   );

@@ -156,6 +156,8 @@ erDiagram
 - `listing_id uuid references listings on delete cascade`, `position smallint` 0–7,
   `full_path text`, `thumb_path text`, `width int`, `height int`
 - Unique `(listing_id, position)`; max 8 rows per listing (trigger).
+- An **active** listing cannot lose its last photo (trigger `listing_images_keep_one`, migration
+  `20261013000100`). Draft, paused, and sold listings may; publishing or resuming checks again.
 
 ### favorites
 - PK `(user_id, listing_id)` → duplicates impossible. Both FKs `on delete cascade`.

@@ -5,11 +5,12 @@ Last updated: 2026-10-13
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03; Phase 3 not committed yet).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1; Phase 4 not committed yet).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
 - **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
-- **Exact next step:** Phase 4 (seller listings) when you say yes.
+- **Phase 4: done (2026-10-13).** Create/edit/status/delete, photo pipeline, `/sell`, `/my-listings`, edit page.
+- **Exact next step:** Phase 5 (favorites, chat, offers) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -63,9 +64,13 @@ Last updated: 2026-10-13
 - Fixed during phase: account deletion failed when a user had offers or had been reported (offer guard + report constraint); test cleanup now fails loudly; search also matches category names; corrupted dev cache documented
 
 ### Phase 4 — Seller listings
-- [ ] Create/edit/status/delete API + UI (`/sell`, `/my-listings`)
-- [ ] Image pipeline (Pillow), ordering, deletion
-- Checks: ownership tests; upload attack tests; confirmation dialogs
+- [x] API: `POST/PATCH/DELETE /listings`, `POST /listings/{id}/status`, `GET /me/listings`; photos add/reorder/delete
+- [x] Image pipeline (Pillow): content check, pixel limit, EXIF rotation, WebP full 1600px + thumb 600px, no metadata; uploads with the seller's own token
+- [x] Body size limit middleware; DB trigger: an active listing keeps ≥1 photo
+- [x] UI: `/sell` (photos kept in browser until submit), `/my-listings` tabs with actions, `/my-listings/[id]/edit`, owner bar on listing page, Sell/My listings in header, confirm dialogs (Mark sold, Delete)
+- Checks passed: Ruff; pytest 157/157 (12 image unit + 23 selling integration); ESLint; tsc; Vitest 42/42; `next build`; browser: validation, publish with 2 photos, reorder, remove, last-photo refusal, mark sold (dialog), delete (dialog), form reset, 375 px
+- Not done: rate limits (create 30/day, uploads 60/hour) — no limiter exists yet; plan for Phase 6. Client-side photo shrinking before upload (saves mobile data) not built
+- Learned: Auth deletes users who still own Storage files and leaves the files behind; account deletion (Phase 6) must remove them first
 
 ### Phase 5 — Buyer–seller interactions
 - [ ] Favorites, conversations, messages (polling), unread counts, offers with history
@@ -95,3 +100,4 @@ Last updated: 2026-10-13
 | 2026-10-10 | 2 | Database + auth done. Fixed during the phase: guard triggers needed caller rights; username lowercased before pattern check; outsider offers now fail as "not allowed"; dark-mode contrast (site is light-only until Phase 3). Supabase JS warns Node 20 is deprecated; plan a move to Node 22. |
 | 2026-10-13 | 2.5 | Design system: tokens + primitives in `globals.css`, Inter font, deep-indigo accent, Button/ButtonLink/TextLink/layout primitives; existing pages migrated. Rules in `docs/DESIGN_SYSTEM.md`. Checks: ESLint, tsc, Vitest 15/15, `next build`, browser check desktop + 375px. |
 | 2026-10-13 | 3 | Browsing done. Found and fixed an account-deletion bug (offer guard + report constraint) via leftover test users. Decision: deleting a seller removes their listings and the chats about them (docs updated). |
+| 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |

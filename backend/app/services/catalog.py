@@ -35,15 +35,15 @@ _ORDER_BY = {
     ),
 }
 
-_CARD_COLUMNS = """
+CARD_COLUMNS = """
     l.id, l.title, l.price_centavos, l.condition::text as condition, l.status::text as status,
-    l.published_at, loc.slug as city_slug, loc.city as city_name,
+    l.published_at, loc.id as city_id, loc.slug as city_slug, loc.city as city_name,
     p.username::text as username, p.display_name, p.avatar_path,
     (select i.thumb_path from app.listing_images i
       where i.listing_id = l.id order by i.position limit 1) as cover_thumb
 """
 
-_CARD_FROM = """
+CARD_FROM = """
     from app.listings l
     join app.profiles p on p.id = l.seller_id
     join app.locations loc on loc.id = l.city_id
@@ -67,14 +67,14 @@ class Urls:
         return f"{self.base}/avatars/{path}" if path else None
 
 
-def _card(row: Any, urls: Urls) -> ListingCard:
+def card_from_row(row: Any, urls: Urls) -> ListingCard:
     return ListingCard(
         id=row["id"],
         title=row["title"],
         price_centavos=row["price_centavos"],
         condition=row["condition"],
         status=row["status"],
-        city=CityRef(slug=row["city_slug"], name=row["city_name"]),
+        city=CityRef(id=row["city_id"], slug=row["city_slug"], name=row["city_name"]),
         cover_thumb_url=urls.listing(row["cover_thumb"]),
         seller=SellerSummary(
             username=row["username"],
@@ -168,17 +168,17 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
     # Relevance needs a query; without one, fall back to newest.
     sort = f.sort if (f.sort != SortOrder.relevance or f.q) else SortOrder.newest
     where_sql = " and ".join(where)
-    count_sql = f"select count(*) {_CARD_FROM} where {where_sql}"  # noqa: S608
+    count_sql = f"select count(*) {CARD_FROM} where {where_sql}"  # noqa: S608
     total = (await db.execute(text(count_sql), params)).scalar_one()
     page_sql = (
-        f"select {_CARD_COLUMNS} {_CARD_FROM} where {where_sql} "  # noqa: S608
+        f"select {CARD_COLUMNS} {CARD_FROM} where {where_sql} "  # noqa: S608
         f"order by {_ORDER_BY[sort]} limit :limit offset :offset"
     )
     rows = await db.execute(
         text(page_sql), {**params, "limit": f.page_size, "offset": (f.page - 1) * f.page_size}
     )
     return ListingPage(
-        items=[_card(r, urls) for r in rows.mappings()],
+        items=[card_from_row(r, urls) for r in rows.mappings()],
         page=f.page,
         page_size=f.page_size,
         total=total,
@@ -189,11 +189,11 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
 # --- detail ----------------------------------------------------------------------
 
 _DETAIL_SQL = f"""
-    select {_CARD_COLUMNS}, l.seller_id, l.description, l.meetup, l.delivery,
+    select {CARD_COLUMNS}, l.seller_id, l.description, l.meetup, l.delivery,
            l.deal_note, l.created_at, l.updated_at,
            c.id as cat_id, c.slug as cat_slug, c.name as cat_name,
            pc.id as pcat_id, pc.slug as pcat_slug, pc.name as pcat_name
-    {_CARD_FROM}
+    {CARD_FROM}
     join app.categories c on c.id = l.category_id
     left join app.categories pc on pc.id = c.parent_id
     where l.id = :id and l.status <> 'deleted'
@@ -212,7 +212,7 @@ async def listing_detail(
     if row is None:
         return None  # missing, deleted, or not visible to this caller (RLS)
     images = (await db.execute(text(_IMAGES_SQL), {"id": listing_id})).mappings()
-    card = _card(row, urls)
+    card = card_from_row(row, urls)
     parent = (
         CategoryRef(id=row["pcat_id"], slug=row["pcat_slug"], name=row["pcat_name"])
         if row["pcat_id"] is not None
@@ -247,7 +247,7 @@ async def listing_detail(
 
 _PROFILE_SQL = """
     select p.username::text as username, p.display_name, p.avatar_path, p.bio,
-           p.created_at, loc.slug as city_slug, loc.city as city_name,
+           p.created_at, loc.id as city_id, loc.slug as city_slug, loc.city as city_name,
            (select count(*) from app.listings l
              where l.seller_id = p.id and l.status = 'active'
                and l.moderation = 'ok') as active_count
@@ -261,7 +261,11 @@ async def public_profile(db: AsyncConnection, username: str, urls: Urls) -> Publ
     row = (await db.execute(text(_PROFILE_SQL), {"username": username})).mappings().first()
     if row is None:
         return None
-    city = CityRef(slug=row["city_slug"], name=row["city_name"]) if row["city_slug"] else None
+    city = (
+        CityRef(id=row["city_id"], slug=row["city_slug"], name=row["city_name"])
+        if row["city_slug"]
+        else None
+    )
     return PublicProfile(
         username=row["username"],
         display_name=row["display_name"],

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Avatar } from "@/components/catalog/avatar";
+import { OwnerBar } from "@/components/selling/owner-bar";
 import { Container, Stack } from "@/components/ui/layout";
 import { TextLink } from "@/components/ui/text-link";
 import { getListingOr404 } from "@/lib/catalog";
@@ -32,6 +33,7 @@ async function ListingContent({ params }: Pick<Props, "params">) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-10">
         <Gallery listing={listing} />
         <div className="flex flex-col gap-6 lg:sticky lg:top-[calc(var(--header-height)+1.5rem)] lg:self-start">
+          <OwnerBar listingId={listing.id} />
           <StatusBanner status={listing.status} />
           <Stack gap={2}>
             <p className="text-heading font-semibold lg:text-display" data-numeric>

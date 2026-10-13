@@ -55,6 +55,7 @@ cp backend/.env.example backend/.env
 ```
 In `backend/.env`, set the `DATABASE_URL` password to the local-only value in `supabase/seed.sql`.
 In `frontend/.env.local`, set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from `npm run db:status`.
+Put the same publishable key in `backend/.env` as `SUPABASE_PUBLISHABLE_KEY` (needed for photo uploads).
 
 ## Run locally
 Start Docker Desktop first, then the local Supabase stack (first run downloads images, ~several minutes):

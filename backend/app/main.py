@@ -2,6 +2,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx2
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,7 +10,9 @@ from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.db import create_engine
 from app.core.errors import register_error_handlers
+from app.core.limits import BodySizeLimit
 from app.core.security import TokenVerifier
+from app.services.storage import Storage
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -19,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
+        await app.state.storage.client.aclose()
         if app.state.engine is not None:
             await app.state.engine.dispose()
 
@@ -35,6 +39,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.token_verifier = TokenVerifier(
         settings.jwks_url, settings.jwt_issuer, settings.jwt_audience
     )
+    app.state.storage = Storage(
+        settings.storage_api_url,
+        settings.supabase_publishable_key,
+        httpx2.AsyncClient(timeout=30),
+    )
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
@@ -44,6 +53,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.headers["X-Request-ID"] = request.state.request_id
         return response
 
+    # Before CORS is added, so CORS wraps it and a 413 still carries CORS headers
+    # (otherwise the browser would only see a network error).
+    app.add_middleware(BodySizeLimit)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
