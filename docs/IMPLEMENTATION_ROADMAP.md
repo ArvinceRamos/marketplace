@@ -5,7 +5,7 @@ Last updated: 2026-10-13
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8; Phase 5 not committed yet).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8, de2b157).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
 - **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
