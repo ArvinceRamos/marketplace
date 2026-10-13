@@ -1,6 +1,6 @@
 # API Specification
 
-Last updated: 2026-10-10 · Status: Phase 0 design. FastAPI also serves live OpenAPI docs at
+Last updated: 2026-10-13 · Status: built through Phase 6a. FastAPI also serves live OpenAPI docs at
 `/docs` (local and non-production only).
 
 Base path: `/api/v1`. JSON in and out, except image upload (multipart).
@@ -149,11 +149,26 @@ expired lazily by `app.expire_stale_offers` before any offer read or change.
 ### Reports and blocks
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/reports` | 🔒 | `{target_type, listing_id?, user_id?, reason, details?}`; 409 if open duplicate; 422 if self |
-| GET | `/me/reports` | 🔒 | own reports and their status |
-| GET | `/me/blocks` | 🔒 | blocked users |
-| PUT | `/users/{id}/block` | 🔒 | idempotent; 422 if self |
-| DELETE | `/users/{id}/block` | 🔒 | idempotent |
+| POST | `/reports` | 🔒 | `{target_type, listing_id?, username?, reason, details?}` → 201 report; 409 `already_reported` if an open one exists; 422 `cannot_report_self` (yourself or your own listing); 404 if the listing isn't visible or the user doesn't exist |
+| GET | `/me/reports` | 🔒 | own reports, newest first: `id, target_type, listing{id,title}?, user{username,…}?, reason, details, status, created_at` (target null once deleted) |
+| GET | `/me/blocks` | 🔒 | blocked users: `username, display_name, avatar_url, blocked_at` |
+| PUT | `/users/{username}/block` | 🔒 | 204, idempotent; 422 `cannot_block_self`; 404 `user_not_found` |
+| DELETE | `/users/{username}/block` | 🔒 | 204, idempotent |
+
+Phase 6a notes: users are named by **username**, not ID. Public responses never expose user IDs
+(ARCHITECTURE §8), so the server looks the ID up. `target_type: listing` needs `listing_id` and no
+`username`, and the reverse for `user` (422 otherwise). Reasons: `prohibited_item`, `scam`,
+`counterfeit`, `offensive`, `spam`, `other`. `details` ≤ 1,000 chars. Blocking hides the chat from
+the blocker's inbox and unread count. `GET /conversations/{id}` adds `blocked_by_me`, and
+`can_message`/`can_offer` are false when either side blocked. The blocked person is never told
+they were blocked.
+
+### Account
+`DELETE /me` body `{confirm_username}` (case and a leading `@` ignored) → 204. Errors: 422
+`username_mismatch`; 502 `storage_unavailable` (photos could not be removed, so the account was
+kept); 503 `account_deletion_unavailable` (no secret key configured, or Auth refused). Order:
+Storage files under `<uid>/` in `listing-images` and `avatars` (with the user's own token), then the
+Auth user (secret key). The token stays valid until it expires, but `/me` then returns 404.
 
 ### Later (designed, not in MVP)
 `POST /offers/{id}/deal`, `POST /deals/{id}/confirm`, `POST /deals/{id}/reviews`,
@@ -171,6 +186,14 @@ expired lazily by `app.expire_stale_offers` before any offer read or change.
 | Reports | 10 / day | user |
 | Block/unblock | 30 / hour | user |
 | Public search | 120 / minute | IP |
+
+Built in Phase 6a (`app/core/ratelimit.py`): in-process sliding window, no extra dependency.
+Over the limit → 429 `rate_limited` with `Retry-After` (seconds). Refused requests don't count.
+Uploads count per photo. Block and unblock share one budget. Counts live in memory: they reset
+when the server restarts or sleeps (one Render instance). The IP comes from the socket address;
+`TRUSTED_PROXY_HOPS=1` on Render uses the entry the proxy appended to `X-Forwarded-For`
+(earlier entries can be faked). `RATE_LIMITS_ENABLED=false` turns it off (tests only).
+
 Sign-up, login, and password reset are rate-limited by Supabase Auth itself
 (e.g. 30 sign-ups per 5 minutes per IP). Source: https://supabase.com/docs/guides/auth/rate-limits (checked 2026-10-10)
 

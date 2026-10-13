@@ -11,7 +11,8 @@ Last updated: 2026-10-13
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
 - **Phase 4: done (2026-10-13).** Create/edit/status/delete, photo pipeline, `/sell`, `/my-listings`, edit page.
 - **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
-- **Exact next step:** Phase 6 (trust, safety, polish) when you say yes.
+- **Phase 6a: done (2026-10-13), not committed yet.** Reports, blocks, account deletion, rate limits, `/settings`.
+- **Exact next step:** commit 6a, then Phase 6b (safety/privacy/terms pages, accessibility + Lighthouse, error/empty states, CSP, `/security-review`) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -82,10 +83,25 @@ Last updated: 2026-10-13
 - Not done: `favorite_count` on cards (needs a counting function; deferred); block/unblock UI and hiding blocked chats (Phase 6, the DB already blocks messaging)
 
 ### Phase 6 — Trust, safety, polish
-- [ ] Reports, blocks (UI + hide blocked chats), safety page, privacy/terms pages, account deletion (remove Storage files first)
-- [ ] Rate limits (from Phase 4), Lighthouse accessibility audit (from Phase 3)
-- [ ] Accessibility pass, error/empty states, security headers/CSP
-- [ ] `/security-review`, fix findings
+Split into 6a and 6b (approved 2026-10-13). Decisions: own in-process rate limiter (no `slowapi`);
+block/report users by username; static CSP without nonces (keeps static shells; 6b); local secret
+key in `backend/.env`; Lighthouse via one-off `npx lighthouse` (6b).
+
+**6a — trust and safety core (done 2026-10-13)**
+- [x] API: `POST /reports`, `GET /me/reports`, `PUT/DELETE /users/{username}/block`, `GET /me/blocks`, `DELETE /me`
+- [x] Blocked chats hidden from the blocker's inbox and unread count; chat detail adds `blocked_by_me`; blocked side can't message and isn't told why
+- [x] Account deletion: Storage files (own token, recursive list) → Auth user (secret key, its only use, logged); 503 without key, 502 if Storage fails (nothing deleted)
+- [x] Rate limits (API spec §3) on chats, messages, offers, listings, photos (per photo), reports, blocks, search (per IP; `TRUSTED_PROXY_HOPS`)
+- [x] UI: "Report this listing"; "•••" menu (Report / Block / Unblock) on seller page and chats with confirm dialog; `/settings` (blocked users, your reports, log out, delete account); Settings in Account menu
+- Checks passed: Ruff; pytest 182/182 (8 limiter unit + 7 safety integration incl. real Storage + Auth deletion); ESLint; tsc; Vitest 67/67; `next build`; browser: report listing, duplicate note, block from chat (chat leaves inbox, composer closed), unblock in Settings, menu hidden on own profile, guest → login, delete account (36 files → 0, Auth user and listings gone), 375 px no sideways scroll
+- Fixed during phase: flaky `test_participants_exchange_messages` (no `order by`); `/settings` now drops account data when hidden
+- Not done (6b or later): header unread badge updates on its next 30 s poll after a block, not at once; `/profile` still keeps data in its hidden page after logout (same fix as settings); `<summary>` menus show as "generic" in the accessibility tree (check in the a11y pass)
+
+**6b — pages and polish**
+- [ ] `/safety` (incl. prohibited items), `/privacy` (RA 10173 notes, not legal advice), `/terms`
+- [ ] Accessibility pass + Lighthouse audit (from Phase 3), error/empty states
+- [ ] Security headers/CSP in Next.js
+- [ ] `/security-review` on the branch, fix findings
 
 ### Phase 7 — Release readiness
 - [ ] Full test suite, lint, type checks, builds, migration replay from scratch
@@ -108,3 +124,4 @@ Last updated: 2026-10-13
 | 2026-10-13 | 3 | Browsing done. Found and fixed an account-deletion bug (offer guard + report constraint) via leftover test users. Decision: deleting a seller removes their listings and the chats about them (docs updated). |
 | 2026-10-13 | 4 | Seller listings done. New deps: `python-multipart` (FastAPI needs it for uploads); `httpx2` moved from dev to main (Storage calls). |
 | 2026-10-13 | 5 | Buyer–seller interactions done. Found and fixed a pre-existing DB bug: offer notes failed after a buyer deleted their account, blocking "mark sold". |
+| 2026-10-13 | 6a | Reports, blocks, account deletion, rate limits, settings. No new dependencies. Local secret key added to untracked `backend/.env`. Dev server stopped for `next build`; `.next` cleared. |

@@ -125,8 +125,12 @@ flowchart LR
   E --> G[Chats with that user hidden; they cannot message you]
 ```
 - Reasons: prohibited item, scam/fraud, counterfeit, offensive content, wrong category/spam, other.
-- One open report per reporter per target.
-- Unblock from `/settings`.
+- One open report per reporter per target. A repeat shows "You already reported this".
+- Guests who tap Report or Block are sent to log in first. The menu is hidden on your own profile.
+- The blocker can also unblock from the same menu. The blocked person still sees old chats,
+  but the reply box says "You can't message this user". It never says they were blocked.
+- Unblock from `/settings` (chats come back). Your reports and their status are listed there too.
+- Built in Phase 6a: listing page "Report this listing"; "•••" menu on the seller page and in chats.
 
 ## 8. Profile, settings, account deletion
 - `/profile` (own), `/profile/edit` (display name, username, avatar, city, bio).

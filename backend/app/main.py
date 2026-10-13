@@ -11,7 +11,9 @@ from app.core.config import Settings, get_settings
 from app.core.db import create_engine
 from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimit
+from app.core.ratelimit import RateLimiter
 from app.core.security import TokenVerifier
+from app.services.auth_admin import AuthAdmin
 from app.services.storage import Storage
 
 
@@ -39,11 +41,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.token_verifier = TokenVerifier(
         settings.jwks_url, settings.jwt_issuer, settings.jwt_audience
     )
-    app.state.storage = Storage(
-        settings.storage_api_url,
-        settings.supabase_publishable_key,
-        httpx2.AsyncClient(timeout=30),
-    )
+    http = httpx2.AsyncClient(timeout=30)  # closed with app.state.storage.client
+    app.state.storage = Storage(settings.storage_api_url, settings.supabase_publishable_key, http)
+    app.state.auth_admin = AuthAdmin(settings.auth_admin_url, settings.supabase_secret_key, http)
+    app.state.rate_limiter = RateLimiter() if settings.rate_limits_enabled else None
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):

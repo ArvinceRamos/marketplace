@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { UserSafetyMenu } from "@/components/safety/user-safety-menu";
 import { Button } from "@/components/ui/button";
 import { FormAlert } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -11,6 +12,7 @@ import {
   listingNotice,
   mergeMessages,
   personName,
+  replyBlockedReason,
   type ConversationDetail,
   type Message,
   type MessagePage,
@@ -150,6 +152,16 @@ export function Thread({ id }: { id: string }) {
             <span className="text-small text-fg-muted">Listing removed</span>
           )}
         </div>
+        {detail.other_user && (
+          <div className="ml-auto shrink-0">
+            <UserSafetyMenu
+              username={detail.other_user.username}
+              name={personName(detail.other_user)}
+              blocked={detail.blocked_by_me}
+              onChange={() => void loadDetail()}
+            />
+          </div>
+        )}
       </header>
 
       <p className="rounded-md bg-surface-muted p-3 text-caption text-fg-muted">
@@ -185,7 +197,11 @@ export function Thread({ id }: { id: string }) {
             await Promise.all([loadDetail(), pollMessages()]);
           }}
         />
-        <Composer conversationId={id} disabled={!detail.can_message} onSent={(m) => addMessages([m])} />
+        <Composer
+          conversationId={id}
+          closedReason={replyBlockedReason(detail)}
+          onSent={(m) => addMessages([m])}
+        />
       </div>
       {/* Below the sticky box, so scrolling here leaves the newest message visible above it. */}
       <div ref={bottom} />
@@ -242,11 +258,11 @@ function MessageItem({ message: m }: { message: Message }) {
 
 function Composer({
   conversationId,
-  disabled,
+  closedReason,
   onSent,
 }: {
   conversationId: string;
-  disabled: boolean;
+  closedReason: string | null;
   onSent: (m: Message) => void;
 }) {
   const [body, setBody] = useState("");
@@ -278,12 +294,8 @@ function Composer({
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) void send();
   }
 
-  if (disabled) {
-    return (
-      <p className="text-small text-fg-muted">
-        You can&apos;t reply: the other person deleted their account.
-      </p>
-    );
+  if (closedReason) {
+    return <p className="text-small text-fg-muted">{closedReason}</p>;
   }
   return (
     <form onSubmit={send} className="flex flex-col gap-1">

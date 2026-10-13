@@ -226,8 +226,10 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 - One exception handler turns errors into one shape:
   `{"error": {"code": "listing_not_found", "message": "...", "fields": {...}}}`.
 - Resources the user may not see return **404**, not 403, so IDs cannot be probed.
-- Rate limits with an in-process limiter (e.g. `slowapi`), keyed by user ID or IP. Works because
-  Render free runs a single instance. Limits reset when the server restarts; documented as a known limit.
+- Rate limits with our own in-process sliding-window limiter (`app/core/ratelimit.py`, Phase 6a;
+  no `slowapi` dependency), keyed by user ID or IP. Works because Render free runs a single
+  instance. Limits reset when the server restarts; documented as a known limit. Values and the
+  `X-Forwarded-For` rule: API_SPECIFICATION §3.
 - CORS allows only the frontend origin(s) from config.
 
 ## 11. Configuration
@@ -241,6 +243,7 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 | `DATABASE_URL` (role `api_app`) | backend | **yes** |
 | `SUPABASE_SECRET_KEY` (account deletion only) | backend | **yes** |
 | `CORS_ORIGINS`, `ENVIRONMENT` | backend | no |
+| `TRUSTED_PROXY_HOPS` (Render: 1), `RATE_LIMITS_ENABLED` | backend | no |
 
 ## 12. Testing and CI
 - **Backend:** pytest. Unit tests for services and validation. Integration tests run against the
@@ -263,3 +266,5 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 | D8 | `uv` for Python deps with lockfile | Fast, reproducible, free (MIT/Apache-2.0) |
 | D9 | `api_app` role with NOINHERIT + SET-only role grants | A missed role switch fails loudly instead of skipping RLS |
 | D10 | Guard triggers for state rules (status, offers, read markers) | Rules hold even if API code has a bug; tested directly in SQL |
+| D11 | Own in-process rate limiter, not `slowapi` (2026-10-13) | ~100 lines, no new dependency; one instance makes memory enough |
+| D12 | Block and report users by username in the API (2026-10-13) | Public responses don't expose user IDs; the server looks the ID up |

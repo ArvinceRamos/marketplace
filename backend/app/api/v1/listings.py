@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, U
 
 from app.core.db import UserDb
 from app.core.errors import AppError
+from app.core.ratelimit import RateLimiter, per_user
 from app.core.security import Claims, access_token, require_claims, user_id
 from app.schemas.catalog import ListingDetail, ListingPage, ListingStatus
 from app.schemas.listings import ImageOrder, ListingCreate, ListingUpdate, StatusChange
@@ -57,7 +58,12 @@ async def get_my_listings(
     )
 
 
-@router.post("/listings", response_model=ListingDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/listings",
+    response_model=ListingDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[per_user("create_listing")],
+)
 async def create_listing(
     body: ListingCreate, request: Request, db: UserDb, claims: UserClaims
 ) -> ListingDetail:
@@ -106,6 +112,9 @@ async def add_images(
     token: Token,
 ) -> ListingDetail:
     """Photos are checked by content, re-encoded to WebP, and stripped of metadata."""
+    limiter: RateLimiter | None = request.app.state.rate_limiter
+    if limiter is not None:  # counted per photo
+        limiter.hit("upload_images", str(user_id(claims)), cost=len(files))
     uploads: list[bytes] = []
     for file in files:
         data = await file.read(MAX_UPLOAD_BYTES + 1)

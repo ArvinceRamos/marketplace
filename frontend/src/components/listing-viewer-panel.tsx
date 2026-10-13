@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FavoriteButton } from "@/components/favorite-button";
 import { useSession } from "@/components/providers";
+import { ReportDialog } from "@/components/safety/report-dialog";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { ListingDetail } from "@/lib/catalog-types";
@@ -29,6 +30,7 @@ export function ListingViewerPanel({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     if (session !== "user") return;
@@ -79,6 +81,14 @@ export function ListingViewerPanel({
     }
   }
 
+  function openReport() {
+    if (session === "guest") {
+      router.push(`/login?next=${encodeURIComponent(`/listing/${listingId}`)}`);
+      return;
+    }
+    setReporting(true);
+  }
+
   const existingChat = viewer?.my_conversation_id;
   return (
     <div className="flex flex-col gap-2">
@@ -102,6 +112,18 @@ export function ListingViewerPanel({
           {error}
         </p>
       )}
+      <button
+        type="button"
+        onClick={openReport}
+        className="self-end rounded-sm px-1 text-caption text-fg-muted underline-offset-2 hover:text-fg hover:underline"
+      >
+        Report this listing
+      </button>
+      <ReportDialog
+        open={reporting}
+        target={{ type: "listing", listingId, label: title }}
+        onClose={() => setReporting(false)}
+      />
     </div>
   );
 }

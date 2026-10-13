@@ -46,7 +46,17 @@ export type ConversationDetail = ConversationSummary & {
   latest_offer: Offer | null;
   can_message: boolean;
   can_offer: boolean;
+  /** I blocked the other person. (Being blocked by them is not revealed.) */
+  blocked_by_me: boolean;
 };
+
+/** Why the composer is closed, or null when messaging is open. */
+export function replyBlockedReason(detail: ConversationDetail): string | null {
+  if (detail.can_message) return null;
+  if (!detail.other_user) return "You can't reply: the other person deleted their account.";
+  if (detail.blocked_by_me) return "You blocked this user. Unblock them to send messages.";
+  return "You can't message this user.";
+}
 
 export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   pending: "Waiting for reply",

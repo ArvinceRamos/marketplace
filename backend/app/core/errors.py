@@ -26,13 +26,19 @@ class AppError(Exception):
     """Raise from services to return a specific status and error code."""
 
     def __init__(
-        self, status_code: int, code: str, message: str, fields: dict[str, str] | None = None
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        fields: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.fields = fields
+        self.headers = headers
 
 
 def error_body(code: str, message: str, fields: dict[str, str] | None = None) -> dict:
@@ -40,7 +46,11 @@ def error_body(code: str, message: str, fields: dict[str, str] | None = None) ->
 
 
 async def _app_error(_: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(error_body(exc.code, exc.message, exc.fields), status_code=exc.status_code)
+    return JSONResponse(
+        error_body(exc.code, exc.message, exc.fields),
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
 
 
 async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:

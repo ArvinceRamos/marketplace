@@ -1,17 +1,20 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.db import UserDb
 from app.core.errors import AppError, sqlstate
-from app.core.security import Claims, require_claims, user_id
+from app.core.security import Claims, access_token, require_claims, user_id
 from app.schemas.profile import MeResponse, MeUpdate
+from app.schemas.safety import AccountDelete
+from app.services import safety
 
 router = APIRouter(prefix="/me", tags=["me"])
 
 UserClaims = Annotated[Claims, Depends(require_claims)]
+Token = Annotated[str, Depends(access_token)]
 
 _SELECT_ME = text(
     """
@@ -53,3 +56,21 @@ async def update_me(body: MeUpdate, db: UserDb, claims: UserClaims) -> MeRespons
                 raise AppError(409, "username_taken", "That username is taken.") from exc
             raise
     return await _load(db, claims)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    body: AccountDelete, request: Request, db: UserDb, claims: UserClaims, token: Token
+) -> Response:
+    """Delete your account for good: photos, listings (and their chats), favorites,
+    blocks, and your reports. Chats where you were the buyer stay for the seller."""
+    await safety.delete_account(
+        db,
+        user_id(claims),
+        body.confirm_username,
+        token,
+        request.app.state.storage,
+        request.app.state.auth_admin,
+        request.state.request_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

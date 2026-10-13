@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.core.db import Db
 from app.core.errors import AppError
+from app.core.ratelimit import per_ip
 from app.core.security import Claims, optional_claims, user_id
 from app.schemas.catalog import (
     CategoryNode,
@@ -43,7 +44,7 @@ async def get_locations(db: Db) -> list[Location]:
     return await catalog.locations(db)
 
 
-@router.get("/listings", response_model=ListingPage)
+@router.get("/listings", response_model=ListingPage, dependencies=[per_ip("search")])
 async def search(
     request: Request,
     db: Db,

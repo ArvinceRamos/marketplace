@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { Avatar } from "@/components/catalog/avatar";
 import { EmptyState } from "@/components/catalog/empty-state";
 import { ListingGrid, ListingGridSkeleton } from "@/components/catalog/listing-grid";
+import { UserSafetyMenu } from "@/components/safety/user-safety-menu";
 import { Pagination } from "@/components/catalog/pagination";
 import { Container, Stack } from "@/components/ui/layout";
 import { getProfileOr404, getSellerListings } from "@/lib/catalog";
@@ -34,10 +35,13 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
 
   return (
     <Stack gap={8}>
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <section className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="absolute top-0 right-0">
+          <UserSafetyMenu username={profile.username} name={name} />
+        </div>
         <Avatar name={name} url={profile.avatar_url} size={64} />
         <Stack gap={2}>
-          <div>
+          <div className="pr-14">
             <h1 className="text-heading">{name}</h1>
             <p className="text-small text-fg-muted">@{profile.username}</p>
           </div>

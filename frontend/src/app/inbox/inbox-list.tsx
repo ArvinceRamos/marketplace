@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FormAlert } from "@/components/ui/field";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { INBOX_CHANGED } from "@/lib/safety";
 import {
   listingNotice,
   personName,
@@ -28,14 +29,22 @@ export function InboxList({ activeId }: { activeId: string | null }) {
   const [items, setItems] = useState<ConversationSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  usePolling(async () => {
+  const load = useCallback(async () => {
     try {
       setItems(await apiFetch<ConversationSummary[]>(`/conversations${role ? `?role=${role}` : ""}`));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load your chats.");
     }
-  }, POLL_MS);
+  }, [role]);
+  usePolling(load, POLL_MS);
+
+  // Blocking hides chats; unblocking brings them back. Reload at once.
+  useEffect(() => {
+    const reload = () => void load();
+    window.addEventListener(INBOX_CHANGED, reload);
+    return () => window.removeEventListener(INBOX_CHANGED, reload);
+  }, [load]);
 
   return (
     <div className="flex flex-col gap-3">

@@ -14,6 +14,7 @@ from app.core.errors import AppError
 logger = logging.getLogger("app.storage")
 
 LISTING_BUCKET = "listing-images"
+AVATAR_BUCKET = "avatars"
 # Paths contain a random ID and files never change, so caches may keep them.
 _CACHE_SECONDS = "31536000"
 
@@ -61,6 +62,63 @@ class Storage:
                 logger.warning("Storage delete rejected with HTTP %s", res.status_code)
         except httpx2.HTTPError as exc:
             logger.warning("Storage delete failed: %s", type(exc).__name__)
+
+    async def list_files(self, token: str, bucket: str, folder: str, depth: int = 3) -> list[str]:
+        """Every file path under `folder` (recursive, up to `depth` levels).
+        Storage policies only show the caller's own folder."""
+        files: list[str] = []
+        offset = 0
+        while True:
+            try:
+                res = await self.client.post(
+                    f"{self.api_url}/object/list/{bucket}",
+                    json={"prefix": folder, "limit": _LIST_PAGE, "offset": offset},
+                    headers=self._headers(token),
+                )
+            except httpx2.HTTPError as exc:
+                logger.warning("Storage list failed: %s", type(exc).__name__)
+                raise _cleanup_failed() from exc
+            if not res.is_success:
+                logger.warning("Storage list rejected with HTTP %s", res.status_code)
+                raise _cleanup_failed()
+            entries = res.json()
+            for entry in entries:
+                path = f"{folder}/{entry['name']}"
+                if entry.get("id") is not None:
+                    files.append(path)
+                elif depth > 1:  # a folder
+                    files.extend(await self.list_files(token, bucket, path, depth - 1))
+            if len(entries) < _LIST_PAGE:
+                return files
+            offset += _LIST_PAGE
+
+    async def remove_all(self, token: str, bucket: str, paths: list[str]) -> None:
+        """Strict delete: any failure raises, so the caller can stop before going on."""
+        for start in range(0, len(paths), _LIST_PAGE):
+            try:
+                res = await self.client.request(
+                    "DELETE",
+                    f"{self.api_url}/object/{bucket}",
+                    json={"prefixes": paths[start : start + _LIST_PAGE]},
+                    headers=self._headers(token),
+                )
+            except httpx2.HTTPError as exc:
+                logger.warning("Storage delete failed: %s", type(exc).__name__)
+                raise _cleanup_failed() from exc
+            if not res.is_success:
+                logger.warning("Storage delete rejected with HTTP %s", res.status_code)
+                raise _cleanup_failed()
+
+
+_LIST_PAGE = 1000
+
+
+def _cleanup_failed() -> AppError:
+    return AppError(
+        502,
+        "storage_unavailable",
+        "Could not remove your photos, so your account was not deleted. Please try again.",
+    )
 
 
 def _unavailable() -> AppError:

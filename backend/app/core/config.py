@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,15 @@ class Settings(BaseSettings):
     jwt_audience: str = "authenticated"
     # Connection string for the `api_app` role (no RLS bypass). Required for DB routes.
     database_url: str | None = None
+    # Secret key. Its only use: delete an Auth user during account deletion
+    # (SECURITY_PLAN §3). Without it, DELETE /me answers 503.
+    supabase_secret_key: SecretStr | None = None
+
+    # Rate limits (API_SPECIFICATION §3), kept in memory.
+    rate_limits_enabled: bool = True
+    # How many proxies in front of the API append to X-Forwarded-For (Render: 1).
+    # 0 = use the socket address and ignore the header (it can be faked).
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -37,6 +47,10 @@ class Settings(BaseSettings):
     @property
     def jwks_url(self) -> str:
         return f"{self.jwt_issuer}/.well-known/jwks.json"
+
+    @property
+    def auth_admin_url(self) -> str:
+        return f"{self.jwt_issuer}/admin"
 
     @property
     def storage_api_url(self) -> str:

@@ -98,6 +98,7 @@ class ConversationDetail(ConversationSummary):
     latest_offer: Offer | None
     can_message: bool
     can_offer: bool
+    blocked_by_me: bool
 
 
 class UnreadCount(BaseModel):

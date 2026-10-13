@@ -1,6 +1,6 @@
 # Security Plan
 
-Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls implemented and tested
+Last updated: 2026-10-13 · Status: Phase 6a — reports, blocks, account deletion, rate limits implemented and tested
 
 ## 1. Principles
 1. **Server decides.** Identity comes from a verified token. Ownership, roles, and states are checked on the server.
@@ -22,7 +22,7 @@ Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls imple
 | T8 | Writing into someone else's storage folder | Storage policy: first path folder must equal `auth.uid()`; API builds paths, never the client | Upload with other user's token path → denied |
 | T9 | Direct database access from browser | App tables in non-exposed `app` schema; RLS still on; secret key never in frontend | Call Supabase Data API for `app` tables → not found |
 | T10 | Privilege escalation to admin | Admin only via `app_metadata.role` (users cannot edit it); no client-side role flags; admin routes not built yet | User edits `user_metadata.role` → still not admin |
-| T11 | Spam / abuse (mass chats, reports) | Per-user rate limits (API spec §3); Supabase Auth limits; one open report per target | 21st new chat in an hour → 429 |
+| T11 | Spam / abuse (mass chats, reports) | Per-user rate limits (API spec §3); Supabase Auth limits; one open report per target | 11th report in a day → 429 + `Retry-After`; limiter unit tests (every action uses the same code) |
 | T12 | XSS via listing text or chat | React escapes by default; no `dangerouslySetInnerHTML`; plain text only; strict CSP headers in Next.js | Script tags render as text |
 | T13 | SQL injection | SQLAlchemy bound parameters only; `websearch_to_tsquery` for search input | Quotes and SQL in `q` → normal results |
 | T14 | Open redirect after login | `next` must be a relative same-site path | `?next=https://evil.example` → goes to `/` |
@@ -37,7 +37,7 @@ Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls imple
 | Key | Where it may live | Notes |
 |---|---|---|
 | Publishable key (`sb_publishable_…`) | Frontend env, browser | Public by design. Only reaches Auth and public Storage reads |
-| Secret key (`sb_secret_…`) | Backend env only | **Only use:** delete an Auth user during account deletion. Never in frontend, CI, or logs |
+| Secret key (`sb_secret_…`) | Backend env only | **Only use:** delete an Auth user during account deletion (`app/services/auth_admin.py`, the only file that reads it; stored as `SecretStr`). Never in frontend, CI, or logs. Missing → `DELETE /me` is 503 and nothing is removed |
 | `DATABASE_URL` for `api_app` | Backend env only | Role without BYPASSRLS |
 | Local CLI keys | Local `.env`, CI | Printed by `supabase start`; only valid for the local stack |
 
@@ -62,6 +62,15 @@ Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls imple
 4. Database cascades remove profile, listings (with chats and offers about them), images,
    favorites, blocks, and own reports. Chats where they were the buyer stay for the seller,
    showing "Deleted user". Verified by an integration test.
+
+**Why the secret key is allowed here (the one documented RLS bypass).** Deleting an Auth user is
+an Auth admin action; no user token can do it. Limits: the user ID comes only from the verified
+token; the user must type their username; the key is sent only to `<SUPABASE_URL>/auth/v1/admin`;
+each use writes one log line with the user ID and request ID (no email or name). Built and tested
+in Phase 6a (`test_api_safety.py`): wrong confirmation removes nothing; a missing key removes
+nothing (503); a Storage failure stops before the Auth call (502). If the Auth call fails after the
+files were removed, the account stays without photos and a retry finishes the job (404 from Auth
+counts as done).
 
 ## 5. Privacy and legal notes (not legal advice)
 The Philippine **Data Privacy Act of 2012 (RA 10173)** applies to personal data of people in the PH.
@@ -89,5 +98,13 @@ and a counterfeit/IP report reason.
   offer or withdraw; answered/expired offers are 409; blocked users cannot start chats, message, or
   offer. Also: login and register forms now clear after success, so a typed password is not kept
   in the hidden page after logging out on a shared device.
-- Phase 6: run `/security-review` on the branch; fix findings; review headers/CSP.
+- Phase 6a (2026-10-13): reports, blocks, account deletion, rate limits (T5, T11). Tests: reports
+  (duplicate 409, self/own listing 422, hidden listing 404, no `reporter_id` in bodies, private
+  to the reporter); blocks (self 422, idempotent, chat hidden from blocker's inbox and badge,
+  blocked person can't write and isn't told why, unblock restores); deletion (files then Auth
+  user, wrong name, no key); 11th report in a day → 429 with `Retry-After`. Rate limiter unit
+  tests cover windows, costs, and the `X-Forwarded-For` rule (only the hop our proxy added is
+  trusted; `TRUSTED_PROXY_HOPS`, default 0). Known limit: counts reset on restart. Also: the
+  `/settings` page drops account data when hidden, like the login forms.
+- Phase 6b: run `/security-review` on the branch; fix findings; review headers/CSP.
 - Phase 7: full test suite, dependency audit (`npm audit`, `uv` lock review), secrets scan.

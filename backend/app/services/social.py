@@ -109,6 +109,11 @@ async def favorite_ids(db: AsyncConnection, uid: uuid.UUID) -> list[uuid.UUID]:
 # My read marker and the other participant, depending on my side of the chat.
 _MY_READ = "case when c.buyer_id = :uid then c.buyer_last_read_at else c.seller_last_read_at end"
 _OTHER = "case when c.buyer_id = :uid then c.seller_id else c.buyer_id end"
+# I blocked the other participant. Such chats are hidden from my inbox and badge.
+# (The person I blocked still sees the chat, but can't write in it.)
+_I_BLOCKED = f"""exists (
+    select 1 from app.blocked_users b where b.blocker_id = :uid and b.blocked_id = {_OTHER}
+)"""  # noqa: S608 - fixed fragments only
 
 _SUMMARY_SQL = f"""
     select c.id, c.buyer_id, c.seller_id,
@@ -121,7 +126,9 @@ _SUMMARY_SQL = f"""
            lm.body as lm_body, lm.created_at as lm_at, lm.sender_id as lm_sender,
            (select count(*) from app.messages m
              where m.conversation_id = c.id and m.sender_id is distinct from :uid
-               and m.created_at > coalesce({_MY_READ}, '-infinity')) as unread
+               and m.created_at > coalesce({_MY_READ}, '-infinity')) as unread,
+           {_I_BLOCKED} as i_blocked,
+           app.is_blocked_between(c.buyer_id, c.seller_id) as blocked
     from app.conversations c
     left join app.listings l on l.id = c.listing_id
     left join app.profiles op on op.id = {_OTHER}
@@ -178,7 +185,7 @@ async def inbox(
     page_size: int,
     urls: Urls,
 ) -> list[ConversationSummary]:
-    where = [_HAS_MESSAGES_OR_MINE]
+    where = [_HAS_MESSAGES_OR_MINE, f"not {_I_BLOCKED}"]
     if role == Role.buying:
         where.append("c.buyer_id = :uid")
     elif role == Role.selling:
@@ -216,17 +223,20 @@ async def conversation(
     summary = _summary(row, uid, urls)
     latest = await _latest_offer(db, conv_id)
     both_here = row["buyer_id"] is not None and row["seller_id"] is not None
+    open_line = both_here and not row["blocked"]
     listing_active = summary.listing is not None and summary.listing.status == "active"
     return ConversationDetail(
         **summary.model_dump(),
         latest_offer=latest,
-        can_message=both_here,
+        can_message=open_line,
         can_offer=(
             summary.role == Role.buying
-            and both_here
+            and open_line
             and listing_active
             and (latest is None or latest.status != "pending")
         ),
+        # Only my own block is revealed; being blocked by the other side is not.
+        blocked_by_me=row["i_blocked"],
     )
 
 
@@ -307,7 +317,8 @@ async def unread_total(db: AsyncConnection, uid: uuid.UUID) -> int:
                     join app.conversations c on c.id = m.conversation_id
                     where :uid in (c.buyer_id, c.seller_id)
                       and m.sender_id is distinct from :uid
-                      and m.created_at > coalesce({_MY_READ}, '-infinity')"""  # noqa: S608
+                      and m.created_at > coalesce({_MY_READ}, '-infinity')
+                      and not {_I_BLOCKED}"""  # noqa: S608
             ),
             {"uid": uid},
         )

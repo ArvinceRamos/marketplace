@@ -50,6 +50,7 @@ function detail(over: Partial<ConversationDetail>): ConversationDetail {
     latest_offer: null,
     can_message: true,
     can_offer: true,
+    blocked_by_me: false,
     ...over,
   };
 }

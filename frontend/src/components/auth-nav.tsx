@@ -116,6 +116,9 @@ function AccountMenu() {
         <Link href="/favorites" className={menuLink}>
           Saved items
         </Link>
+        <Link href="/settings" className={menuLink}>
+          Settings
+        </Link>
         <div className="my-1 border-t border-border" />
         <SignOutButton className="justify-start" />
       </div>

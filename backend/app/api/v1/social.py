@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.core.db import UserDb
+from app.core.ratelimit import per_user
 from app.core.security import Claims, require_claims, user_id
 from app.schemas.catalog import ListingPage
 from app.schemas.social import (
@@ -66,7 +67,11 @@ async def my_favorite_ids(db: UserDb, claims: UserClaims) -> list[uuid.UUID]:
 # --- conversations -----------------------------------------------------------------
 
 
-@router.post("/listings/{listing_id}/conversations", response_model=StartConversation)
+@router.post(
+    "/listings/{listing_id}/conversations",
+    response_model=StartConversation,
+    dependencies=[per_user("start_conversation")],
+)
 async def start_conversation(
     listing_id: uuid.UUID, db: UserDb, claims: UserClaims
 ) -> StartConversation:
@@ -112,6 +117,7 @@ async def get_messages(
     "/conversations/{conversation_id}/messages",
     response_model=Message,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[per_user("send_message")],
 )
 async def send_message(
     conversation_id: uuid.UUID, body: MessageCreate, db: UserDb, claims: UserClaims
@@ -143,6 +149,7 @@ async def list_offers(conversation_id: uuid.UUID, db: UserDb, claims: UserClaims
     "/conversations/{conversation_id}/offers",
     response_model=Offer,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[per_user("make_offer")],
 )
 async def make_offer(
     conversation_id: uuid.UUID, body: OfferCreate, db: UserDb, claims: UserClaims

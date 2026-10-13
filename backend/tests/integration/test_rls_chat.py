@@ -115,7 +115,9 @@ async def test_participants_exchange_messages(db, people):
     _, chat = await _chat(db, seller, buyer)
     await db.as_user(buyer, SEND, chat, buyer.id, "Is this available?")
     await db.as_user(seller, SEND, chat, seller.id, "Yes")
-    rows = await db.as_user(buyer, "select body from app.messages where conversation_id = $1", chat)
+    rows = await db.as_user(
+        buyer, "select body from app.messages where conversation_id = $1 order by id", chat
+    )
     assert [r["body"] for r in rows] == ["Is this available?", "Yes"]
 
 
