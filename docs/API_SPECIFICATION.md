@@ -89,8 +89,9 @@ Create/edit body:
   "deal_note": "SM North EDSA, weekends"
 }
 ```
-Listing response (card): `id, title, price_centavos, condition, status, city {name}, cover_thumb_url, seller {username, display_name, avatar_url}, published_at, favorite_count`.
-Detail adds: `description, category {id, name, parent}, images[{id, full_url, thumb_url, width, height, position}], meetup, delivery, deal_note, created_at, updated_at`.
+Listing response (card): `id, title, price_centavos, condition, status, city {name}, cover_thumb_url, seller {username, display_name, avatar_url}, published_at`. (`favorite_count` arrives with favorites in Phase 5.)
+Detail adds: `description, category {id, slug, name}, parent_category, images[{id, full_url, thumb_url, width, height, position}], meetup, delivery, deal_note, created_at, updated_at, is_owner`.
+Search `q` matches title and description words, partial titles, and category names.
 
 ### Listing images
 | Method | Path | Auth | Notes |

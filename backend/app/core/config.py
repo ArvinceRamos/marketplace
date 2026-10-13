@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     def jwks_url(self) -> str:
         return f"{self.jwt_issuer}/.well-known/jwks.json"
 
+    @property
+    def public_storage_url(self) -> str:
+        """Base URL browsers use to load files from public buckets."""
+        return f"{self.supabase_url.rstrip('/')}/storage/v1/object/public"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -450,11 +450,14 @@ begin
     return new;
   end if;
 
-  if new.id <> old.id or new.conversation_id <> old.conversation_id
+  -- End users may only change status. Internal updates (e.g. ON DELETE SET NULL
+  -- when an account is deleted) must be allowed through.
+  if not internal and (
+     new.id <> old.id or new.conversation_id <> old.conversation_id
      or new.listing_id <> old.listing_id or new.amount_centavos <> old.amount_centavos
      or new.buyer_id is distinct from old.buyer_id
      or new.seller_id is distinct from old.seller_id
-     or new.created_at <> old.created_at or new.expires_at <> old.expires_at then
+     or new.created_at <> old.created_at or new.expires_at <> old.expires_at) then
     raise exception 'offer field is read-only' using errcode = '42501';
   end if;
 
@@ -536,9 +539,11 @@ create table app.reports (
   status app.report_status not null default 'open',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  -- The target id may become null later (target deleted); the report is kept.
+  -- reports_guard requires the target on insert.
   constraint reports_one_target check (
-    (target_type = 'listing' and listing_id is not null and reported_user_id is null) or
-    (target_type = 'user' and reported_user_id is not null and listing_id is null)
+    (target_type = 'listing' and reported_user_id is null) or
+    (target_type = 'user' and listing_id is null)
   ),
   constraint reports_not_self check (reporter_id <> reported_user_id)
 );
@@ -553,6 +558,10 @@ create trigger reports_updated_at before update on app.reports
 create function app.reports_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
+  if (new.target_type = 'listing' and new.listing_id is null)
+     or (new.target_type = 'user' and new.reported_user_id is null) then
+    raise exception 'report target is required' using errcode = '23514';
+  end if;
   if new.target_type = 'listing' and exists (
     select 1 from app.listings where id = new.listing_id and seller_id = new.reporter_id
   ) then

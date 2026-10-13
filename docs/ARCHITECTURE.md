@@ -148,6 +148,8 @@ https://supabase.com/docs/guides/database/connecting-to-postgres (checked 2026-1
 ## 6. Search, filters, pagination
 - Postgres full-text search: a generated `tsvector` column on `listings` (title weighted A,
   description B) with a GIN index. `websearch_to_tsquery('simple', q)` handles user input safely.
+- Queries also match category names (so "laptop" finds "Laptops & Computers") and partial
+  titles via `ILIKE` (wildcards in user input are escaped).
   `simple` config because listings mix English and Filipino.
 - `pg_trgm` trigram index on title for partial words and typos ("iphon").
 - Filters are indexed columns: `category_id`, `price_centavos`, `condition`, `city_id`, `status`.
@@ -195,7 +197,11 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
 
 - Route protection runs on the server (Next.js proxy/middleware or layout check). The API checks
   again; the frontend check is only for user experience.
-- Each route segment has `loading.tsx` and `error.tsx`. Listing images use fixed aspect-ratio boxes.
+- **Rendering (Phase 3):** pages prerender a static shell; API data is fetched at request time
+  inside `<Suspense>` with skeletons (no `use cache`), so builds never need the API and a
+  waking Render server shows a skeleton, then `error.tsx` with "Try again" after 20 s.
+  Unknown IDs/slugs render `not-found.tsx` (soft 404 with `noindex`, because the page is streamed).
+- `next/image` runs with `images.unoptimized: true`; we serve our own WebP thumbnails.
 - Next.js 16.4 is current (released 2026-10-06). A security release is announced for 2026-10-14;
   Phase 1 should pin to that patched version. Source: https://nextjs.org/blog (checked 2026-10-10)
 

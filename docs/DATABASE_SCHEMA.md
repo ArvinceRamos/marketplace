@@ -247,7 +247,7 @@ Source: https://supabase.com/docs/guides/database/postgres/row-level-security (c
 |---|---|
 | Seller deletes listing | `status = deleted`, `deleted_at` set; images removed from Storage; favorites stay but show "no longer available"; pending offers → expired; chats stay readable |
 | Listing marked sold | pending offers → expired; new offers blocked; chat continues |
-| User deletes account | Auth user deleted → profile cascade → listings, images, favorites, blocks, own reports deleted; conversation/message `*_id` set null and shown as "Deleted user" |
+| User deletes account | Auth user deleted → profile cascade → listings (and the chats/offers about them), images, favorites, blocks, own reports deleted. Chats where they were the buyer stay for the seller with `buyer_id`/`sender_id` set null ("Deleted user"). Reports about them keep the row with the target set null. Tested in `test_account_deletion.py` |
 | Admin hides listing (later) | `moderation = hidden`; only owner sees it, with a notice |
 
 ## 8. Seed data (local only)

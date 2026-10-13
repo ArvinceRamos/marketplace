@@ -1,13 +1,15 @@
 # Implementation Roadmap
 
-Last updated: 2026-10-10
+Last updated: 2026-10-13
 
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (first commit f919f9e; Phase 2 not committed yet).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03; Phase 3 not committed yet).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
-- **Exact next step:** Phase 3 (browsing) when you say yes.
+- **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
+- **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
+- **Exact next step:** Phase 4 (seller listings) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -53,10 +55,12 @@ Last updated: 2026-10-10
 - Open: hosted pooler + `api_app` login to verify at deploy; Google sign-in not configured yet (needs a Google OAuth client)
 
 ### Phase 3 — Browsing
-- [ ] Seed: categories, cities, fake users, ~60 listings, generated placeholder images
-- [ ] API: categories, locations, listings search/detail, public profiles
-- [ ] UI: home, search with URL filters, category pages, listing detail, seller page, loading/empty/error states
-- Checks: search/filter tests; responsive check at 360 px, 768 px, 1280 px; Lighthouse accessibility pass
+- [x] Seed: 29 categories (2 levels) and 59 PH cities in `seed.sql`; `npm run db:demo` adds 8 sellers, 50 listings, 99 generated photos (local only, re-runnable)
+- [x] API: `/categories`, `/locations`, `/listings` (search, filters, sort, pagination), `/listings/{id}`, `/profiles/{username}`, `/profiles/{username}/listings`
+- [x] UI: home, `/search` (URL filters), `/categories/[slug]`, `/listing/[id]`, `/seller/[username]`, skeletons, empty states, `not-found`, `error` (server waking)
+- Checks passed: Ruff; pytest 122/122 (19 browse tests incl. 422s and visibility); ESLint; tsc; Vitest 24/24; `next build` with no API and with CI env only; browser at 375, 768, 1280 px (no horizontal scroll), filters, detail, not-found
+- Not done: Lighthouse accessibility audit (moved to Phase 6 polish). Not-found pages return HTTP 200 + `noindex` because they stream (acceptable for now)
+- Fixed during phase: account deletion failed when a user had offers or had been reported (offer guard + report constraint); test cleanup now fails loudly; search also matches category names; corrupted dev cache documented
 
 ### Phase 4 — Seller listings
 - [ ] Create/edit/status/delete API + UI (`/sell`, `/my-listings`)
@@ -90,3 +94,4 @@ Last updated: 2026-10-10
 | 2026-10-10 | 1 | Foundation done. Ports moved to 3100 / 544xx to run beside RvFit and avoid Windows-reserved ranges. 5 high npm audit warnings are dev-only (`braces` via lint tooling); production deps: 0. |
 | 2026-10-10 | 2 | Database + auth done. Fixed during the phase: guard triggers needed caller rights; username lowercased before pattern check; outsider offers now fail as "not allowed"; dark-mode contrast (site is light-only until Phase 3). Supabase JS warns Node 20 is deprecated; plan a move to Node 22. |
 | 2026-10-13 | 2.5 | Design system: tokens + primitives in `globals.css`, Inter font, deep-indigo accent, Button/ButtonLink/TextLink/layout primitives; existing pages migrated. Rules in `docs/DESIGN_SYSTEM.md`. Checks: ESLint, tsc, Vitest 15/15, `next build`, browser check desktop + 375px. |
+| 2026-10-13 | 3 | Browsing done. Found and fixed an account-deletion bug (offer guard + report constraint) via leftover test users. Decision: deleting a seller removes their listings and the chats about them (docs updated). |

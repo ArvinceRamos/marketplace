@@ -58,8 +58,9 @@ Last updated: 2026-10-10 · Status: Phase 2 — database and auth controls imple
 1. User types their username to confirm.
 2. API deletes their Storage objects (with the user's own token).
 3. API calls the Auth admin "delete user" endpoint with the secret key (the one RLS bypass, logged).
-4. Database cascades remove profile, listings, images, favorites, blocks, own reports.
-   Conversations keep the other person's messages; the deleted user's side shows "Deleted user".
+4. Database cascades remove profile, listings (with chats and offers about them), images,
+   favorites, blocks, and own reports. Chats where they were the buyer stay for the seller,
+   showing "Deleted user". Verified by an integration test.
 
 ## 5. Privacy and legal notes (not legal advice)
 The Philippine **Data Privacy Act of 2012 (RA 10173)** applies to personal data of people in the PH.

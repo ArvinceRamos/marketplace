@@ -4,7 +4,7 @@ An original, free-to-run classifieds marketplace for the Philippines. People lis
 secondhand items, chat, make offers, and arrange the deal themselves. It is inspired by the
 public features of Carousell PH, but it uses none of Carousell's code, branding, or content.
 
-Status: **Phase 2 (database and auth)** — schema, RLS, sign-up/login, and profile editing work locally.
+Status: **Phase 3 (browsing)** — homepage, search with filters, categories, listing and seller pages work locally with demo data.
 
 Stack: Next.js 16 (App Router, TypeScript, Tailwind) · FastAPI (Python 3.13, Pydantic) ·
 Supabase (Postgres, Auth, Storage, RLS) · Docker (API only) · GitHub Actions.
@@ -123,6 +123,15 @@ npm run db:reset
 ```
 New migration: add a timestamped `.sql` file to `supabase/migrations/`, then reset. Never edit a migration that has been applied to a hosted project.
 
+### Demo data
+`seed.sql` loads categories and PH cities. For sample sellers, about 50 listings, and generated
+placeholder photos (simple drawn shapes, no real product photos), run after a reset:
+```bash
+npm run db:demo
+```
+It only runs against localhost and can be re-run (it replaces the previous demo data). Demo sellers
+log in as `<username>@demo.test`; the script prints their local-only password.
+
 ## Troubleshooting
 | Problem | Fix |
 |---|---|
@@ -132,6 +141,7 @@ New migration: add a timestamped `.sql` file to `supabase/migrations/`, then res
 | Port 3100 or 8000 in use | Stop the other process, or change the port in `frontend/package.json` / the uvicorn command (update `CORS_ORIGINS` too) |
 | Browser shows CORS error calling the API | `CORS_ORIGINS` in `backend/.env` must exactly match the frontend origin, e.g. `http://localhost:3100` |
 | First Vitest run times out | Run it again; the first run warms up a cache |
+| A page hangs on "Compiling …" in `npm run dev` | Stop the dev server, delete `frontend/.next`, start it again. Don't run `npm run build` while the dev server is running (they share `.next`) |
 | `failed to decode signing keys` | Run `npm run db:keys -- --force`, then `npm run db:start` |
 | `/me` returns 503 `db_unavailable` | `DATABASE_URL` is missing in `backend/.env`, or Supabase is not running |
 | Pages show "Missing NEXT_PUBLIC_…" | Create `frontend/.env.local` from `.env.example`, then restart `npm run dev` |

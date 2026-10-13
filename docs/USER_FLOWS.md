@@ -130,8 +130,9 @@ flowchart LR
 - `/seller/[username]` public: avatar, name, city, joined date, active listings.
   Never shows email or phone.
 - `/settings`: blocked users, sign out, **delete account** (type username to confirm).
-  Deletion removes the profile, listings, photos, and favorites; chat messages remain for the
-  other person but show "Deleted user".
+  Deletion removes the profile, listings, photos, and favorites. Chats about the user's own
+  listings are removed with those listings. Chats where they were the buyer stay for the seller,
+  showing "Deleted user".
 
 ## 9. Later: deal completion and reviews
 1. After an accepted offer, either side taps "Mark deal completed".

@@ -128,13 +128,19 @@ class Users:
         token.raise_for_status()
         return User(uid, email, token.json()["access_token"])
 
+    def delete(self, uid: uuid.UUID) -> httpx2.Response:
+        return httpx2.delete(
+            f"{self.stack.api_url}/auth/v1/admin/users/{uid}",
+            headers=self._admin_headers(),
+            timeout=10,
+        )
+
     def cleanup(self) -> None:
-        for uid in self.created:
-            httpx2.delete(
-                f"{self.stack.api_url}/auth/v1/admin/users/{uid}",
-                headers=self._admin_headers(),
-                timeout=10,
-            )
+        # Fail loudly: a user that cannot be deleted is a real bug (account deletion).
+        failed = [
+            uid for uid in self.created if self.delete(uid).status_code not in (200, 204, 404)
+        ]
+        assert not failed, f"Could not delete test users: {failed}"
 
 
 @pytest.fixture(scope="session")
