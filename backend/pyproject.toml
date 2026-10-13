@@ -1,0 +1,34 @@
+[project]
+name = "marketplace-api"
+version = "0.1.0"
+description = "FastAPI backend for the marketplace"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.143,<0.144",
+    "pydantic-settings>=2.6",
+    "uvicorn[standard]>=0.30",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

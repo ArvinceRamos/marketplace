@@ -1,0 +1,121 @@
+# Marketplace (working name)
+
+An original, free-to-run classifieds marketplace for the Philippines. People list new or
+secondhand items, chat, make offers, and arrange the deal themselves. It is inspired by the
+public features of Carousell PH, but it uses none of Carousell's code, branding, or content.
+
+Status: **Phase 1 (foundation)** — both apps run locally; no marketplace features yet.
+
+Stack: Next.js 16 (App Router, TypeScript, Tailwind) · FastAPI (Python 3.13, Pydantic) ·
+Supabase (Postgres, Auth, Storage, RLS) · Docker (API only) · GitHub Actions.
+
+Docs: [Product](docs/PRODUCT_REQUIREMENTS.md) · [Architecture](docs/ARCHITECTURE.md) ·
+[Database](docs/DATABASE_SCHEMA.md) · [API](docs/API_SPECIFICATION.md) ·
+[Security](docs/SECURITY_PLAN.md) · [Free tiers](docs/FREE_TIER_LIMITATIONS.md) ·
+[Roadmap](docs/IMPLEMENTATION_ROADMAP.md)
+
+## Layout
+```
+frontend/   Next.js app            (port 3100)
+backend/    FastAPI app            (port 8000)
+supabase/   local Supabase config  (ports 54420–54429)
+docs/       planning docs
+```
+Ports differ from the defaults (3000, 543xx) so this can run next to other local projects.
+
+## Prerequisites (Windows)
+| Tool | Version | Install |
+|---|---|---|
+| Node.js | ≥ 20.9 | https://nodejs.org |
+| uv | 0.12+ | `winget install --id astral-sh.uv --source winget` |
+| Python | 3.13 | `uv python install 3.13` (uv manages it) |
+| Docker Desktop | with WSL 2 | https://docs.docker.com/desktop/setup/install/windows-install/ |
+| Git | any recent | https://git-scm.com |
+
+## First-time setup
+```bash
+npm install
+```
+```bash
+npm --prefix frontend install
+```
+```bash
+uv sync --directory backend
+```
+Copy the example env files (they contain placeholders only):
+```bash
+cp frontend/.env.example frontend/.env.local
+```
+```bash
+cp backend/.env.example backend/.env
+```
+
+## Run locally
+Start Docker Desktop first, then the local Supabase stack (first run downloads images, ~several minutes):
+```bash
+npm run db:start
+```
+`npm run db:status` prints local URLs and keys. Studio (database UI): http://127.0.0.1:54423.
+Local auth emails are caught at http://127.0.0.1:54424.
+
+API (http://localhost:8000, docs at http://localhost:8000/docs):
+```bash
+uv run --directory backend uvicorn app.main:app --reload --port 8000
+```
+Frontend (http://localhost:3100):
+```bash
+npm --prefix frontend run dev
+```
+Stop Supabase when done (data is kept):
+```bash
+npm run db:stop
+```
+
+## Checks
+Backend:
+```bash
+uv run --directory backend ruff format --check .
+```
+```bash
+uv run --directory backend ruff check .
+```
+```bash
+uv run --directory backend pytest
+```
+Frontend:
+```bash
+npm --prefix frontend run lint
+```
+```bash
+npm --prefix frontend run typecheck
+```
+```bash
+npm --prefix frontend test
+```
+```bash
+npm --prefix frontend run build
+```
+API Docker image:
+```bash
+docker build -t marketplace-api:dev backend
+```
+```bash
+docker run --rm -p 8001:8000 marketplace-api:dev
+```
+Then open http://localhost:8001/api/v1/health. The image runs in production mode, so `/docs` is hidden.
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every push and pull request. It needs no secrets.
+
+## Database migrations and seed
+Added in Phase 2 (`supabase/migrations/`) and Phase 3 (`supabase/seed.sql`).
+`npm run db:reset` re-creates the local database from migrations + seed. It never touches hosted projects.
+
+## Troubleshooting
+| Problem | Fix |
+|---|---|
+| `uv` not found right after install | Open a new terminal (winget updates PATH for new shells) |
+| `ports are not available … forbidden by its access permissions` on `db:start` | Windows reserves some port ranges. Check with `netsh int ipv4 show excludedportrange protocol=tcp` and pick free ports in `supabase/config.toml` |
+| `db:start` hangs or fails | Make sure Docker Desktop is running; `docker info` should print a server version |
+| Port 3100 or 8000 in use | Stop the other process, or change the port in `frontend/package.json` / the uvicorn command (update `CORS_ORIGINS` too) |
+| Browser shows CORS error calling the API | `CORS_ORIGINS` in `backend/.env` must exactly match the frontend origin, e.g. `http://localhost:3100` |
+| First Vitest run times out | Run it again; the first run warms up a cache |
