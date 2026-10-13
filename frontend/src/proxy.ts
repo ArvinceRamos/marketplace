@@ -14,6 +14,7 @@ const PROTECTED = [
   "/pay",
   "/orders",
   "/wallet",
+  "/admin",
 ];
 const GUEST_ONLY = ["/login", "/register"];
 

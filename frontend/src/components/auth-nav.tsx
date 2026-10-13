@@ -7,6 +7,7 @@ import { useSession } from "@/components/providers";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { createClient } from "@/lib/supabase/client";
 import { unreadBadge } from "@/lib/social";
 import { usePolling } from "@/lib/use-polling";
 
@@ -74,6 +75,17 @@ const menuLink = "block rounded-sm px-3 py-2.5 text-small text-fg hover:bg-ink-1
 function AccountMenu() {
   const ref = useRef<HTMLDetailsElement>(null);
   const pathname = usePathname();
+  // Display only: the API checks the signed role on every admin request.
+  const [moderator, setModerator] = useState(false);
+  useEffect(() => {
+    let active = true;
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => active && setModerator(data.session?.user.app_metadata?.role === "admin"));
+    return () => {
+      active = false;
+    };
+  }, []);
   // Close after navigating, and when this page is hidden by navigation.
   useLayoutEffect(() => {
     const details = ref.current;
@@ -128,6 +140,11 @@ function AccountMenu() {
         <Link href="/settings" className={menuLink}>
           Settings
         </Link>
+        {moderator && (
+          <Link href="/admin" className={menuLink}>
+            Moderation
+          </Link>
+        )}
         <div className="my-1 border-t border-border" />
         <SignOutButton className="justify-start" />
       </div>

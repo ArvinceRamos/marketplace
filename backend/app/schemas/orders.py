@@ -73,15 +73,34 @@ class HandoverCode(BaseModel):
     code: Annotated[str, Field(pattern=r"^[0-9]{6}$")]
 
 
-def _strip(value: str | None) -> str | None:
-    return value.strip() if value is not None else None
+# Optional text: the constraints sit on the str, so an explicit null is accepted.
+Text1000 = Annotated[str, AfterValidator(str.strip), Field(max_length=1000)]
 
 
 class ReviewCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rating: Annotated[int, Field(ge=1, le=5)]
-    comment: Annotated[str | None, AfterValidator(_strip), Field(max_length=1000)] = None
+    comment: Text1000 | None = None
+
+
+class DisputeReason(StrEnum):
+    not_received = "not_received"
+    not_as_described = "not_as_described"
+    incomplete = "incomplete"
+
+
+class DisputeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: DisputeReason
+    details: Text1000 | None = None
+
+
+class DisputeNote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Text1000 | None = None
 
 
 class MockPayOutcome(BaseModel):
@@ -157,6 +176,19 @@ class OrderReview(BaseModel):
     created_at: datetime
 
 
+class Dispute(BaseModel):
+    id: uuid.UUID
+    reason: DisputeReason
+    details: str | None
+    status: Literal["open", "escalated", "resolved"]
+    respond_by: datetime | None
+    seller_note: str | None
+    admin_note: str | None
+    outcome: Literal["refunded", "released", "withdrawn"] | None
+    created_at: datetime
+    resolved_at: datetime | None
+
+
 class OrderDetail(OrderSummary):
     courier: Courier | None
     item_price_centavos: int
@@ -180,6 +212,7 @@ class OrderDetail(OrderSummary):
     my_review: OrderReview | None
     their_review: OrderReview | None  # only once reviews are public (double-blind)
     review_until: datetime | None
+    dispute: Dispute | None
     actions: list[str]  # what the caller may do now
 
 

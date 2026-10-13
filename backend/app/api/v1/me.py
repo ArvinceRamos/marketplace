@@ -19,7 +19,8 @@ Token = Annotated[str, Depends(access_token)]
 _SELECT_ME = text(
     """
     select id, username::text as username, display_name, bio, avatar_path, city_id,
-           age_confirmed_at is not null as age_confirmed, created_at
+           age_confirmed_at is not null as age_confirmed, created_at,
+           restricted_at is not null as restricted
     from app.profiles where id = :uid
     """
 )
@@ -32,7 +33,8 @@ async def _load(db: UserDb, claims: Claims) -> MeResponse:
     row = (await db.execute(_SELECT_ME, {"uid": user_id(claims)})).mappings().first()
     if row is None:
         raise AppError(404, "not_found", "Profile not found.")
-    return MeResponse(email=claims.get("email"), **row)
+    role = (claims.get("app_metadata") or {}).get("role")
+    return MeResponse(email=claims.get("email"), is_admin=role == "admin", **row)
 
 
 @router.get("", response_model=MeResponse)

@@ -48,6 +48,8 @@ export type ConversationDetail = ConversationSummary & {
   can_offer: boolean;
   /** I blocked the other person. (Being blocked by them is not revealed.) */
   blocked_by_me: boolean;
+  /** A moderator restricted the other person. */
+  other_restricted?: boolean;
 };
 
 /** Why the composer is closed, or null when messaging is open. */

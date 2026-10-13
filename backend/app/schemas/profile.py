@@ -31,6 +31,8 @@ class MeResponse(BaseModel):
     city_id: int | None
     age_confirmed: bool
     created_at: datetime
+    restricted: bool = False  # set by a moderator; blocks new listings, chats, offers, orders
+    is_admin: bool = False  # from the verified token's app_metadata (display only)
 
 
 class MeUpdate(BaseModel):

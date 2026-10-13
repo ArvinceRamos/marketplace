@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useLayoutEffect, useState } from "react";
+import { DisputePanel } from "@/components/orders/dispute-panel";
 import { HandoverForm } from "@/components/orders/handover-form";
 import { ReviewForm } from "@/components/orders/review-form";
 import { Stars } from "@/components/orders/stars";
@@ -39,6 +40,7 @@ type SimpleAction = {
   url: (id: string) => string;
   variant?: ButtonVariant;
   demo?: boolean;
+  body?: unknown;
   confirm?: (o: OrderDetail) => { title: string; body: string; action: string; variant?: ButtonVariant };
 };
 
@@ -69,6 +71,37 @@ export const SIMPLE_ACTIONS: Record<string, SimpleAction> = {
       title: "Make a new handover code?",
       body: "Your old code stops working. Use this if you shared it too early or the seller got locked out.",
       action: "Make a new code",
+    }),
+  },
+  dispute_refund: {
+    label: "Refund the buyer",
+    url: (id) => `/orders/${id}/dispute/refund`,
+    body: {},
+    confirm: (o) => ({
+      title: "Refund the buyer in full?",
+      body: `${formatMoney(o.total_centavos)} goes back to the buyer and the order ends. There are no returns in this demo.`,
+      action: "Refund",
+      variant: "danger",
+    }),
+  },
+  dispute_withdraw: {
+    label: "Problem solved",
+    url: (id) => `/orders/${id}/dispute/withdraw`,
+    variant: "secondary",
+    confirm: (o) => ({
+      title: "Withdraw your report?",
+      body: `This releases ${formatMoney(o.item_price_centavos)} to the seller and completes the order.`,
+      action: "Withdraw report",
+    }),
+  },
+  dispute_escalate: {
+    label: "Ask a moderator",
+    url: (id) => `/orders/${id}/dispute/escalate`,
+    variant: "secondary",
+    confirm: () => ({
+      title: "Ask a moderator to decide?",
+      body: "A moderator will look at the order and decide: refund you, or release the money to the seller. Their decision is final.",
+      action: "Ask a moderator",
     }),
   },
   cancel: {
@@ -155,7 +188,8 @@ export function OrderView({ id }: { id: string }) {
   }
 
   async function runSimple(action: string) {
-    const problem = await post(action, SIMPLE_ACTIONS[action].url(id));
+    const spec = SIMPLE_ACTIONS[action];
+    const problem = await post(action, spec.url(id), spec.body);
     setError(problem);
   }
 
@@ -283,6 +317,8 @@ export function OrderView({ id }: { id: string }) {
         </div>
       )}
       <FormAlert message={error} />
+
+      <DisputePanel order={order} post={post} />
 
       {order.shipment && <Tracking shipment={order.shipment} />}
 

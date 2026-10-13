@@ -18,6 +18,7 @@ from app.schemas.catalog import ListingPage, ListingStatus
 from app.schemas.listings import ListingCreate, ListingUpdate
 from app.services.catalog import CARD_COLUMNS, CARD_FROM, Urls, card_from_row
 from app.services.images import process_image
+from app.services.safety import ensure_not_restricted
 from app.services.storage import LISTING_BUCKET, Storage
 
 MAX_PHOTOS = 8
@@ -150,6 +151,7 @@ def _check_deal_options(
 
 
 async def create_listing(db: AsyncConnection, uid: uuid.UUID, body: ListingCreate) -> uuid.UUID:
+    await ensure_not_restricted(db, uid)
     await _check_refs(db, body.category_id, body.city_id)
     await _check_size(db, body.category_id, body.size)
     values = body.model_dump(mode="json")
@@ -208,6 +210,8 @@ async def change_status(
         raise _RESERVED
     if new not in TRANSITIONS[old]:
         raise AppError(409, "invalid_status_change", f"A {old} listing can't be changed to {new}.")
+    if new == "active":
+        await ensure_not_restricted(db, uid)
     if new == "active" and await _photo_count(db, listing_id) == 0:
         raise AppError(409, "listing_needs_photo", "Add at least one photo before publishing.")
     await db.execute(

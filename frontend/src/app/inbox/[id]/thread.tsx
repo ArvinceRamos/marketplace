@@ -188,6 +188,11 @@ export function Thread({ id }: { id: string }) {
           {notice}
         </p>
       )}
+      {detail.other_restricted && (
+        <p role="status" className="rounded-md bg-warning-soft p-3 text-small">
+          A moderator restricted this account. Don&rsquo;t send money or personal details.
+        </p>
+      )}
 
       <FormAlert message={error} />
       {olderCursor && (

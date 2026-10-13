@@ -83,8 +83,43 @@ export type OrderDetail = OrderSummary & {
   /** Hidden until both sides reviewed or 14 days passed (double-blind). */
   their_review: OrderReview | null;
   review_until: string | null;
+  dispute: Dispute | null;
   actions: string[];
 };
+
+export type DisputeReason = "not_received" | "not_as_described" | "incomplete";
+
+export type Dispute = {
+  id: string;
+  reason: DisputeReason;
+  details: string | null;
+  status: "open" | "escalated" | "resolved";
+  respond_by: string | null;
+  seller_note: string | null;
+  admin_note: string | null;
+  outcome: "refunded" | "released" | "withdrawn" | null;
+  created_at: string;
+  resolved_at: string | null;
+};
+
+export const DISPUTE_REASON_LABELS: Record<DisputeReason, string> = {
+  not_received: "I didn't receive it",
+  not_as_described: "It's not as described",
+  incomplete: "Parts or items are missing",
+};
+
+/** One line for the dispute's state, from the viewer's side. */
+export function disputeLine(dispute: Dispute, role: OrderRole): string {
+  if (dispute.status === "resolved") {
+    if (dispute.outcome === "refunded") return "Resolved: the buyer was refunded in full.";
+    if (dispute.outcome === "withdrawn") return "Resolved: the buyer withdrew the report.";
+    return "Resolved: the money was released to the seller.";
+  }
+  if (dispute.status === "escalated") return "A moderator is reviewing this. Their decision is final.";
+  return role === "selling"
+    ? "Refund the buyer, or contest it so a moderator decides. If you don't answer in time, a moderator decides."
+    : "Waiting for the seller to answer. You can ask a moderator now, or withdraw if it's solved.";
+}
 
 export type ShipmentStatus =
   | "label_created"
@@ -247,6 +282,8 @@ export function currentDeadline(order: OrderDetail): { label: string; at: string
   if (order.status === "confirmed" && order.meet_by) return { label: "Meet by", at: order.meet_by };
   if (order.status === "delivered" && order.confirm_by)
     return { label: "Auto-completes", at: order.confirm_by };
+  if (order.status === "disputed" && order.dispute?.status === "open" && order.dispute.respond_by)
+    return { label: "Seller answers by", at: order.dispute.respond_by };
   return null;
 }
 

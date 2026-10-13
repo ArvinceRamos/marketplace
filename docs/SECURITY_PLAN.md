@@ -21,7 +21,7 @@ Last updated: 2026-10-13 · Status: Phase 8 — release checks done (not deploye
 | T7 | Location leak via photo EXIF/GPS | Re-encoding drops all metadata | Upload with GPS EXIF → stored file has none |
 | T8 | Writing into someone else's storage folder | Storage policy: first path folder must equal `auth.uid()`; API builds paths, never the client | Upload with other user's token path → denied |
 | T9 | Direct database access from browser | App tables in non-exposed `app` schema; RLS still on; secret key never in frontend | Call Supabase Data API for `app` tables → not found |
-| T10 | Privilege escalation to admin | Admin only via `app_metadata.role` (users cannot edit it); no client-side role flags; admin routes not built yet | User edits `user_metadata.role` → still not admin |
+| T10 | Privilege escalation to admin | Admin only via `app_metadata.role` (users cannot edit it); no client-side role flags (the menu link is display only); `/admin` routes check the token and every admin function checks `app.is_admin()` (Phase 12, T30) | User with `user_metadata.role = admin` → 403 on every `/admin` route (tested) |
 | T11 | Spam / abuse (mass chats, reports) | Per-user rate limits (API spec §3); Supabase Auth limits; one open report per target | 11th report in a day → 429 + `Retry-After`; limiter unit tests (every action uses the same code) |
 | T12 | XSS via listing text or chat | React escapes by default; no `dangerouslySetInnerHTML`; plain text only; static CSP in Next.js (§7) | Script tags render as text; outside scripts and fetches blocked by CSP (browser check) |
 | T13 | SQL injection | SQLAlchemy bound parameters only; `websearch_to_tsquery` for search input | Quotes and SQL in `q` → normal results |

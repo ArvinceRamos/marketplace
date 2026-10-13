@@ -63,6 +63,8 @@ export type ListingDetail = ListingCard & {
   // Only meaningful for a signed-in viewer.
   is_favorited: boolean;
   my_open_order_id?: string | null;
+  /** Hidden by a moderator; only the owner still sees it. */
+  hidden?: boolean;
   my_conversation_id: string | null;
 };
 
@@ -86,4 +88,6 @@ export type PublicProfile = {
   /** Average of public reviews (1 decimal), null when there are none. */
   rating_average: number | null;
   rating_count: number;
+  /** A moderator restricted this account. */
+  restricted: boolean;
 };

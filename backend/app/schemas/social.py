@@ -99,6 +99,8 @@ class ConversationDetail(ConversationSummary):
     can_message: bool
     can_offer: bool
     blocked_by_me: bool
+    # The other person was restricted by a moderator (public, like a warning badge).
+    other_restricted: bool = False
 
 
 class UnreadCount(BaseModel):

@@ -25,6 +25,7 @@ from app.schemas.social import (
     Role,
 )
 from app.services.catalog import CARD_COLUMNS, CARD_FROM, Urls, card_from_row
+from app.services.safety import ensure_not_restricted
 
 _LISTING_GONE = AppError(404, "listing_not_found", "This listing is not available.")
 _CONVERSATION_GONE = AppError(404, "conversation_not_found", "This chat was not found.")
@@ -122,7 +123,7 @@ _SUMMARY_SQL = f"""
            (select i.thumb_path from app.listing_images i
              where i.listing_id = l.id order by i.position limit 1) as l_thumb,
            op.username::text as o_username, op.display_name as o_display,
-           op.avatar_path as o_avatar,
+           op.avatar_path as o_avatar, op.restricted_at is not null as o_restricted,
            lm.body as lm_body, lm.created_at as lm_at, lm.sender_id as lm_sender,
            (select count(*) from app.messages m
              where m.conversation_id = c.id and m.sender_id is distinct from :uid
@@ -237,6 +238,7 @@ async def conversation(
         ),
         # Only my own block is revealed; being blocked by the other side is not.
         blocked_by_me=row["i_blocked"],
+        other_restricted=bool(row["o_restricted"]),
     )
 
 
@@ -261,6 +263,7 @@ async def start_conversation(
     existing = await _existing_chat(db, uid, listing_id)
     if existing is not None:
         return existing  # an old chat stays open even if the item is now sold
+    await ensure_not_restricted(db, uid)
     if listing.status != "active":
         raise AppError(409, "listing_unavailable", "This item is no longer available.")
     blocked = await db.execute(
@@ -395,6 +398,7 @@ async def send_message(
     row = await _conversation_row(db, uid, conv_id)
     if row["buyer_id"] is None or row["seller_id"] is None:
         raise AppError(409, "user_left", "The other person has deleted their account.")
+    await ensure_not_restricted(db, uid)
     blocked = await db.execute(
         text("select app.is_blocked_between(:a, :b)"),
         {"a": row["buyer_id"], "b": row["seller_id"]},
@@ -469,6 +473,7 @@ async def make_offer(
         raise AppError(409, "user_left", "The other person has deleted their account.")
     if row["l_status"] != "active":
         raise AppError(409, "listing_unavailable", "This item is no longer available.")
+    await ensure_not_restricted(db, uid)
     await _expire_stale(db, conv_id)
     latest = await _latest_offer(db, conv_id)
     if latest is not None and latest.status == "pending":

@@ -18,7 +18,8 @@ Last updated: 2026-10-13
 - **Phase 9: done (2026-10-13).** Transactions research + design (docs only). Phases 10–13 approved in the same message ("do everything from phase 9 to 13").
 - **Phase 10: done (2026-10-13).** Test-mode checkout: orders, MockPay + signed webhooks, ledger, wallet, reserved listings.
 - **Phase 11: done (2026-10-13).** Shipping + MockCourier tracking, handover code, COD, auto-complete, demo tools, double-blind reviews.
-- **Exact next step:** Phase 12 — disputes and admin moderation (migration `20261013000700_admin_disputes.sql`, `/admin` pages, `npm run db:admin`). Deployment only after you say "Deploy now."
+- **Phase 12: done (2026-10-13).** Disputes, admin role, reports queue, hide listings, restrict users, audit log, `/admin`.
+- **Exact next step:** Phase 13 — release checks and portfolio polish (migration replay, full suites, `next build`, Lighthouse, security review, demo orders, README test-mode guide, KNOWN_LIMITATIONS). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -157,8 +158,13 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 - Fixed during phase: the order page mounted its confirm dialog only when needed, and the dialog's close-on-unmount ran during React's dev double mount, so it closed at once (Phase 10's Cancel was affected too). Now always mounted, like other pages.
 - Note: order pages poll only while the tab is visible (same as chat); a page opened in a hidden tab loads when shown
 
-### Phase 12 — Disputes and admin moderation
-- [ ] Disputes (open, refund, contest, withdraw, escalate, 48 h timer), admin role + `app.is_admin()`, restricted users, reports queue, listing moderation, audit log, `/admin` pages, `npm run db:admin`; tests (T30–T31)
+### Phase 12 — Disputes and admin moderation (done 2026-10-13)
+- [x] Migration `20261013000700_admin_disputes.sql`: `app.is_admin()` (signed `app_metadata.role`), `profiles.restricted_at` + `app.is_restricted`, restricted users blocked by the insert policies (listings, chats, messages, offers), a publish guard, and `order_terms`; disputes (open / seller refund or contest / buyer withdraw / escalate, 48 h timer, refund marks the item sold: no returns); admin functions (resolve dispute, report status, listing moderation, restriction) that check `is_admin()` and write `admin_actions`; admin read policies; admin timer tick
+- [x] Backend: `app/api/v1/admin.py` (route-level role check) + `app/services/admin.py`; dispute routes on orders; `/me` adds `is_admin`, `restricted`; profile adds `restricted`; chat detail adds `other_restricted`; listing detail adds `hidden`; friendly 403 `restricted` before the database check; `npm run db:admin -- <email> [--remove]` (local only)
+- [x] Frontend: `/admin` (overview, reports with hide/restrict, disputes with refund/release + required note, users search + restrict/lift, audit log), "Moderation" in the Account menu for moderators, dispute panel on orders (report, contest, refund, withdraw, ask a moderator), restricted warnings (chat, seller page), hidden notice on the edit page
+- Checks passed: Ruff; pytest 235/235 (+6 integration: admin role from the signed token only (user_metadata ignored), DB refuses non-admins, report → hide + restrict + audit, restricted user blocked everywhere incl. RLS, seller refund, contest → moderator release, unanswered → escalated → moderator refund, withdraw, COD has no disputes; +2 unit: request schemas); ESLint; typecheck; Vitest 96/96 (+3); browser as a local demo moderator: Moderation menu link, overview counts, user search, restrict + lift with confirm dialogs, audit log entries
+- Fixed during phase: optional text fields (`note`, `comment`, `details`) returned 500 when sent as `null` (Pydantic constraint on `str | None`); now constrained on `str` with a regression test. The review form sends `null` for an empty comment, so this also affected Phase 11 reviews without a comment.
+- Note: an unhandled 500 has no CORS headers, so the browser shows "Can't reach the server" instead of the generic error (known since Phase 8, SECURITY_PLAN §3c)
 
 ### Phase 13 — Release and portfolio polish
 - [ ] Full suites, migration replay, Lighthouse, security review, demo orders in every state, README test-mode guide, KNOWN_LIMITATIONS update
@@ -186,3 +192,4 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 | 2026-10-13 | 9 | Transactions research (2 subagents) + design docs. No code, no dependencies. Carousell PH has no in-app payment; Vinted model simulated instead. |
 | 2026-10-13 | 10 | Simulated payments core. No new dependencies (hmac/hashlib/secrets from the standard library; pgcrypto already installed). |
 | 2026-10-13 | 11 | Fulfilment and reviews. No new dependencies. Found and fixed the conditional confirm dialog closing itself. |
+| 2026-10-13 | 12 | Disputes and admin moderation. No new dependencies. Found and fixed 500s on `null` optional text. A local demo user (homebody_liza) has the moderator role for manual checks. |

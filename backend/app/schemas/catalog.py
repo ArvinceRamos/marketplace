@@ -122,6 +122,7 @@ class ListingDetail(ListingCard):
     is_favorited: bool = False
     my_conversation_id: uuid.UUID | None = None
     my_open_order_id: uuid.UUID | None = None  # the viewer's open order for this item
+    hidden: bool = False  # hidden by a moderator (only the owner can still see it)
 
 
 class ListingPage(BaseModel):
@@ -143,3 +144,4 @@ class PublicProfile(BaseModel):
     follower_count: int = 0
     rating_average: float | None = None  # public reviews only
     rating_count: int = 0
+    restricted: bool = False  # a moderator restricted this account

@@ -191,6 +191,17 @@ async def my_blocks(db: AsyncConnection, uid: uuid.UUID, urls: Urls) -> list[Blo
 # --- account deletion --------------------------------------------------------------
 
 
+async def ensure_not_restricted(db: AsyncConnection, uid: uuid.UUID) -> None:
+    """A clear 403 before the database's own check (RLS / order_terms, T31)."""
+    restricted = await db.execute(text("select app.is_restricted(:uid)"), {"uid": uid})
+    if restricted.scalar_one():
+        raise AppError(
+            403,
+            "restricted",
+            "Your account is restricted by a moderator. You can still finish open orders.",
+        )
+
+
 async def delete_account(
     db: AsyncConnection,
     uid: uuid.UUID,

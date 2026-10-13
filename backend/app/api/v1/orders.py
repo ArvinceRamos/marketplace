@@ -19,6 +19,8 @@ from app.integrations.mockcourier import MockCourier
 from app.integrations.mockpay import MockPay
 from app.schemas.orders import (
     CheckoutOptions,
+    DisputeCreate,
+    DisputeNote,
     HandoverCode,
     MockPayOutcome,
     MockPayResult,
@@ -183,6 +185,78 @@ async def handover(
             status_code=409,
         )
     return await orders.detail(db, user_id(claims), order_id, _urls(request), _demo(request))
+
+
+@router.post(
+    "/orders/{order_id}/dispute",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def open_dispute(
+    order_id: uuid.UUID, body: DisputeCreate, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Buyer: report a problem. Holds the money; the seller has 48 hours to answer."""
+    return await orders.open_dispute(
+        db,
+        user_id(claims),
+        order_id,
+        body.reason.value,
+        body.details,
+        _urls(request),
+        _demo(request),
+    )
+
+
+@router.post(
+    "/orders/{order_id}/dispute/refund",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def dispute_refund(
+    order_id: uuid.UUID, body: DisputeNote, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Seller: refund the buyer in full (no return in this demo)."""
+    return await orders.seller_respond(
+        db, user_id(claims), order_id, "refund", body.note, _urls(request), _demo(request)
+    )
+
+
+@router.post(
+    "/orders/{order_id}/dispute/contest",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def dispute_contest(
+    order_id: uuid.UUID, body: DisputeNote, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Seller: disagree. A moderator decides."""
+    return await orders.seller_respond(
+        db, user_id(claims), order_id, "contest", body.note, _urls(request), _demo(request)
+    )
+
+
+@router.post(
+    "/orders/{order_id}/dispute/withdraw",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def dispute_withdraw(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Buyer: the problem is solved. Releases the money to the seller."""
+    return await _act("dispute_withdraw", order_id, request, db, claims)
+
+
+@router.post(
+    "/orders/{order_id}/dispute/escalate",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def dispute_escalate(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Either side: ask a moderator to decide now."""
+    return await _act("dispute_escalate", order_id, request, db, claims)
 
 
 @router.post(

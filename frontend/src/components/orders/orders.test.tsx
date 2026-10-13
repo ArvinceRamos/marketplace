@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+import type { OrderDetail } from "@/lib/orders";
+import { DisputePanel } from "./dispute-panel";
 import { HandoverForm } from "./handover-form";
 import { ReviewForm } from "./review-form";
 import { Tracking } from "./tracking";
@@ -51,4 +53,54 @@ test("tracking marks reached steps and says the waybill is a demo", () => {
   expect(screen.getByText(/DEMO-JNT-0123456789/)).toBeTruthy();
   expect(screen.getByText(/demo, not a real parcel/)).toBeTruthy();
   expect(screen.getAllByText("(not yet)")).toHaveLength(3);
+});
+
+const baseOrder = {
+  id: "o1",
+  role: "buying",
+  status: "delivered",
+  actions: ["confirm_received", "open_dispute"],
+  dispute: null,
+} as unknown as OrderDetail;
+
+test("buyer reports a delivered item: only arrival problems are offered", async () => {
+  const post = vi.fn().mockResolvedValue(null);
+  render(<DisputePanel order={baseOrder} post={post} />);
+  fireEvent.click(screen.getByRole("button", { name: "Report a problem" }));
+  expect(screen.queryByLabelText("I didn't receive it")).toBeNull();
+  fireEvent.click(screen.getByLabelText("Parts or items are missing"));
+  fireEvent.click(screen.getByRole("button", { name: "Send report" }));
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith("open_dispute", "/orders/o1/dispute", {
+      reason: "incomplete",
+      details: null,
+    }),
+  );
+});
+
+test("seller sees the report and must explain a contest", async () => {
+  const post = vi.fn().mockResolvedValue(null);
+  const order = {
+    ...baseOrder,
+    role: "selling",
+    status: "disputed",
+    actions: ["dispute_refund", "dispute_contest"],
+    dispute: {
+      id: "d1",
+      reason: "not_as_described",
+      details: "Cracked screen",
+      status: "open",
+      respond_by: "2026-10-15T00:00:00Z",
+      seller_note: null,
+      admin_note: null,
+      outcome: null,
+      created_at: "2026-10-13T00:00:00Z",
+      resolved_at: null,
+    },
+  } as unknown as OrderDetail;
+  render(<DisputePanel order={order} post={post} />);
+  expect(screen.getByText(/Cracked screen/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Contest and ask a moderator" }));
+  expect(await screen.findByText("Tell the moderator what happened.")).toBeTruthy();
+  expect(post).not.toHaveBeenCalled();
 });

@@ -11,7 +11,8 @@
     "db:status": "supabase status",
     "db:reset": "supabase db reset",
     "db:keys": "node scripts/gen-signing-key.mjs",
-    "db:demo": "uv run --directory backend python -m scripts.seed_demo"
+    "db:demo": "uv run --directory backend python -m scripts.seed_demo",
+    "db:admin": "uv run --directory backend python -m scripts.make_admin"
   },
   "devDependencies": {
     "supabase": "^2.120.0"

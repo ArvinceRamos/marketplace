@@ -51,6 +51,11 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
             <p className="text-small text-fg-muted">@{profile.username}</p>
           </div>
           <p className="text-small text-fg-muted">{details.join(" · ")}</p>
+          {profile.restricted && (
+            <p role="status" className="rounded-sm bg-warning-soft px-3 py-2 text-small">
+              A moderator restricted this account. Be careful dealing with it.
+            </p>
+          )}
           <p className="text-small font-medium">
             <a href="#seller-reviews" className="hover:underline">
               {ratingLine(profile.rating_average, profile.rating_count)}

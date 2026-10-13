@@ -182,6 +182,11 @@ export function EditListing({
           <span className="font-medium">Status: </span>
           {STATUS_TEXT[listing.status]}
         </p>
+        {listing.hidden && (
+          <p role="status" className="w-full rounded-sm bg-warning-soft px-3 py-2 text-small">
+            A moderator hid this listing, so buyers can&rsquo;t see it. See the safety rules.
+          </p>
+        )}
         <ListingActions listingId={id} status={listing.status} onDone={statusChanged} />
       </section>
 

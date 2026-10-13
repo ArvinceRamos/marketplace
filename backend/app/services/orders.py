@@ -26,6 +26,7 @@ from app.schemas.orders import (
     OPEN_STATUSES,
     CheckoutOptions,
     CourierOption,
+    Dispute,
     Fulfilment,
     MockPaySession,
     OrderDetail,
@@ -243,7 +244,12 @@ async def list_orders(
 
 
 def actions_for(
-    row: Any, uid: uuid.UUID, *, can_review: bool = False, demo: bool = False
+    row: Any,
+    uid: uuid.UUID,
+    *,
+    can_review: bool = False,
+    demo: bool = False,
+    dispute: Dispute | None = None,
 ) -> list[str]:
     """What the caller may do now. The database checks each action again."""
     buyer = row["buyer_id"] == uid
@@ -260,10 +266,16 @@ def actions_for(
             actions.append("new_code")
         actions.append("cancel")
     elif status in ("shipped", "delivered") and buyer and online:
-        actions.append("confirm_received")
+        actions += ["confirm_received", "open_dispute"]
+    elif status == "disputed" and dispute is not None and dispute.status != "resolved":
+        if dispute.status == "open":
+            actions += ["dispute_escalate"] if buyer else ["dispute_refund", "dispute_contest"]
+        if buyer:
+            actions.append("dispute_withdraw")
     if status == "shipped" and demo:
         actions.append("advance_tracking")
-    if status in ("pending_payment", "confirmed", "delivered") and demo:
+    open_dispute = dispute is not None and dispute.status == "open"
+    if demo and (status in ("pending_payment", "confirmed", "delivered") or open_dispute):
         actions.append("fast_forward")
     if can_review:
         actions.append("review")
@@ -318,6 +330,25 @@ async def _reviews(
     return mine, theirs
 
 
+async def _dispute(db: AsyncConnection, order_id: uuid.UUID) -> Dispute | None:
+    row = (
+        (
+            await db.execute(
+                text(
+                    """select id, reason::text as reason, details, status::text as status,
+                              respond_by, seller_note, admin_note, outcome, created_at,
+                              resolved_at
+                       from app.disputes where order_id = :id"""
+                ),
+                {"id": order_id},
+            )
+        )
+        .mappings()
+        .first()
+    )
+    return Dispute(**row) if row else None
+
+
 async def detail(
     db: AsyncConnection, uid: uuid.UUID, order_id: uuid.UUID, urls: Urls, demo: bool = False
 ) -> OrderDetail:
@@ -348,6 +379,7 @@ async def detail(
             )
         ).scalar_one_or_none()
     mine, theirs = await _reviews(db, uid, order_id)
+    dispute = await _dispute(db, order_id)
     review_until = None
     if row["status_text"] == "completed" and row["completed_at"] is not None:
         review_until = row["completed_at"] + timedelta(days=30)
@@ -382,7 +414,8 @@ async def detail(
         my_review=mine,
         their_review=theirs,
         review_until=review_until,
-        actions=actions_for(row, uid, can_review=can_review, demo=demo),
+        dispute=dispute,
+        actions=actions_for(row, uid, can_review=can_review, demo=demo, dispute=dispute),
     )
 
 
@@ -395,7 +428,41 @@ ACTION_SQL = {
     "ship": "select app.order_ship(:id)",
     "confirm_received": "select app.order_confirm_received(:id)",
     "new_code": "select app.order_new_handover_code(:id)",
+    "dispute_withdraw": "select app.dispute_withdraw(:id)",
+    "dispute_escalate": "select app.dispute_escalate(:id)",
 }
+
+
+async def open_dispute(
+    db: AsyncConnection,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    reason: str,
+    details: str | None,
+    urls: Urls,
+    demo: bool,
+) -> OrderDetail:
+    await db.execute(
+        text("select app.dispute_open(:id, cast(:reason as app.dispute_reason), :details)"),
+        {"id": order_id, "reason": reason, "details": details},
+    )
+    return await detail(db, uid, order_id, urls, demo)
+
+
+async def seller_respond(
+    db: AsyncConnection,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    action: str,
+    note: str | None,
+    urls: Urls,
+    demo: bool,
+) -> OrderDetail:
+    await db.execute(
+        text("select app.dispute_seller_respond(:id, :action, :note)"),
+        {"id": order_id, "action": action, "note": note},
+    )
+    return await detail(db, uid, order_id, urls, demo)
 
 
 async def act(

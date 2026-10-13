@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   currentDeadline,
   defaultTerms,
+  disputeLine,
   formatMoney,
   formatSigned,
   nextStep,
@@ -46,6 +47,7 @@ const order = (over: Partial<OrderDetail>): OrderDetail => ({
   my_review: null,
   their_review: null,
   review_until: null,
+  dispute: null,
   actions: ["cancel"],
   ...over,
 });
@@ -108,4 +110,26 @@ test("rating line", () => {
   expect(ratingLine(null, 0)).toBe("No reviews yet");
   expect(ratingLine(4.5, 1)).toBe("4.5 ★ (1 review)");
   expect(ratingLine(5, 12)).toBe("5.0 ★ (12 reviews)");
+});
+
+test("dispute line and deadline", () => {
+  const dispute = {
+    id: "d1",
+    reason: "incomplete" as const,
+    details: null,
+    status: "open" as const,
+    respond_by: "2026-10-15T00:00:00Z",
+    seller_note: null,
+    admin_note: null,
+    outcome: null,
+    created_at: "2026-10-13T00:00:00Z",
+    resolved_at: null,
+  };
+  const o = order({ status: "disputed", dispute, meet_by: null });
+  expect(currentDeadline(o)).toEqual({ label: "Seller answers by", at: "2026-10-15T00:00:00Z" });
+  expect(disputeLine(dispute, "selling")).toMatch(/Refund the buyer, or contest/);
+  expect(disputeLine({ ...dispute, status: "escalated" }, "buying")).toMatch(/moderator/);
+  expect(disputeLine({ ...dispute, status: "resolved", outcome: "refunded" }, "buying")).toBe(
+    "Resolved: the buyer was refunded in full.",
+  );
 });

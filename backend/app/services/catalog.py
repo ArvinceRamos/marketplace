@@ -221,6 +221,7 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
 _DETAIL_SQL = f"""
     select {CARD_COLUMNS}, l.seller_id, l.description, l.meetup, l.delivery,
            l.deal_note, l.payment_methods, l.couriers, l.created_at, l.updated_at,
+           l.moderation = 'hidden' as hidden,
            c.id as cat_id, c.slug as cat_slug, c.name as cat_name,
            pc.id as pcat_id, pc.slug as pcat_slug, pc.name as pcat_name
     {CARD_FROM}
@@ -274,6 +275,7 @@ async def listing_detail(
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         is_owner=viewer_id is not None and row["seller_id"] == viewer_id,
+        hidden=row["hidden"],
         **(await _viewer_state(db, listing_id, viewer_id)),
     )
 
@@ -313,7 +315,8 @@ _PROFILE_SQL = """
              where l.seller_id = p.id and l.status = 'active'
                and l.moderation = 'ok') as active_count,
            app.follower_count(p.id) as follower_count,
-           rs.average as rating_average, rs.total as rating_count
+           rs.average as rating_average, rs.total as rating_count,
+           p.restricted_at is not null as restricted
     from app.profiles p
     cross join lateral app.rating_summary(p.id) rs
     left join app.locations loc on loc.id = p.city_id
@@ -341,4 +344,5 @@ async def public_profile(db: AsyncConnection, username: str, urls: Urls) -> Publ
         follower_count=row["follower_count"],
         rating_average=float(row["rating_average"]) if row["rating_average"] is not None else None,
         rating_count=row["rating_count"],
+        restricted=row["restricted"],
     )

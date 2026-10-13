@@ -103,7 +103,14 @@ class Users:
     def _admin_headers(self) -> dict[str, str]:
         return {"apikey": self.stack.secret_key, "Authorization": f"Bearer {self.stack.secret_key}"}
 
-    def create(self, name: str, *, age_confirmed: bool = True) -> User:
+    def create(
+        self,
+        name: str,
+        *,
+        age_confirmed: bool = True,
+        app_metadata: dict | None = None,
+        user_metadata: dict | None = None,
+    ) -> User:
         email = f"{name}-{uuid.uuid4().hex[:8]}@example.test"
         password = secrets.token_urlsafe(16)
         res = httpx2.post(
@@ -113,7 +120,9 @@ class Users:
                 "email": email,
                 "password": password,
                 "email_confirm": True,
-                "user_metadata": {"age_confirmed": age_confirmed},
+                "user_metadata": {"age_confirmed": age_confirmed, **(user_metadata or {})},
+                # Signed into the token; users can't change it (admin role, Phase 12).
+                **({"app_metadata": app_metadata} if app_metadata else {}),
             },
             timeout=10,
         )
