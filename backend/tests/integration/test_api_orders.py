@@ -22,8 +22,8 @@ PRICE = 1_000_000  # ₱10,000 (Db.make_listing)
 FEE = 1500 + PRICE * 5 // 100  # ₱15 + 5%
 
 
-@pytest.fixture(scope="module")
-def api(stack):
+def orders_client(stack):
+    """An app client for order tests (also used by test_api_fulfilment and test_api_admin)."""
     dsn = stack.app_dsn.replace("postgresql://", "postgresql+asyncpg://", 1)
     settings = Settings(
         environment="test",
@@ -35,6 +35,11 @@ def api(stack):
     )
     with TestClient(create_app(settings)) as client:
         yield client
+
+
+@pytest.fixture(scope="module")
+def api(stack):
+    yield from orders_client(stack)
 
 
 def auth(user) -> dict[str, str]:
@@ -188,7 +193,7 @@ async def test_online_meetup_order_reserves_pays_and_refunds(api, db, users):
     order = res.json()
     assert order["status"] == "pending_payment"
     assert order["total_centavos"] == PRICE + FEE
-    assert order["actions"] == ["pay", "cancel"]
+    assert order["actions"] == ["pay", "cancel", "fast_forward"]  # demo tools on in tests
     oid = order["id"]
 
     # The listing is reserved: no second order, no seller changes (T26).
@@ -264,7 +269,7 @@ async def test_cash_and_cod_orders_need_no_payment(api, db, users):
     assert (cash["status"], cash["buyer_fee_centavos"], cash["actions"]) == (
         "confirmed",
         0,
-        ["cancel"],
+        ["new_code", "cancel", "fast_forward"],
     )
     assert cash["handover_code"] and cash["meet_by"]
     cod = place(api, buyer, ship, fulfilment="delivery", payment="cod", courier="jnt").json()

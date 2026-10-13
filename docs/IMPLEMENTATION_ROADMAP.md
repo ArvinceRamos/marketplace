@@ -17,7 +17,8 @@ Last updated: 2026-10-13
 - **Phase 8: done (2026-10-13), committed e9d92b8.** Release checks; see docs/KNOWN_LIMITATIONS.md.
 - **Phase 9: done (2026-10-13).** Transactions research + design (docs only). Phases 10–13 approved in the same message ("do everything from phase 9 to 13").
 - **Phase 10: done (2026-10-13).** Test-mode checkout: orders, MockPay + signed webhooks, ledger, wallet, reserved listings.
-- **Exact next step:** Phase 11 — fulfilment (ship + MockCourier tracking, handover code, COD remittance, confirm received, timers, demo fast-forward) and reviews. Deployment only after you say "Deploy now."
+- **Phase 11: done (2026-10-13).** Shipping + MockCourier tracking, handover code, COD, auto-complete, demo tools, double-blind reviews.
+- **Exact next step:** Phase 12 — disputes and admin moderation (migration `20261013000700_admin_disputes.sql`, `/admin` pages, `npm run db:admin`). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -148,9 +149,13 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 - Checks passed: Ruff; pytest 13 new unit (signing, MockPay, settings, demo routes off) + 12 new integration (quotes and option rules, offer price, reserve/pay/refund, cash+COD, forged/stale/unsigned/wrong-amount/duplicate webhooks, late payment refund, abandoned checkout frees the listing, ship/meet deadlines, wallet withdraw, ledger read-only even for superuser, account deletion waits); full backend 218 before the final production-settings test fix, then that test passed; ESLint; typecheck; Vitest 90/90 (+7); migrations replayed with `supabase db reset`; demo data reloaded; browser: listing → Buy → checkout (meetup/delivery switch, ₱695 + ₱15 fee, courier fee) → MockPay → order confirmed with ship-by deadline; orders list; wallet shows the payment; 375 px no sideways scroll on checkout, orders, wallet
 - Notes: `next build` deferred to Phase 13 (dev server running); `ENVIRONMENT=production` (Docker image) now needs `MOCKPAY_WEBHOOK_SECRET` and `MOCKCOURIER_WEBHOOK_SECRET`; test cleanup closes test users' orders and zeroes balances as superuser before deleting them
 
-### Phase 11 — Fulfilment, completion, reviews
-- [ ] Ship + fake waybill, MockCourier webhook, tracking steps, COD remittance, confirm received, handover code (5 tries), timers, demo fast-forward
-- [ ] Reviews (double-blind, 30-day window), seller rating; tests (T28, T29); UI
+### Phase 11 — Fulfilment, completion, reviews (done 2026-10-13)
+- [x] Migration `20261013000600_fulfilment_reviews.sql`: shipments + events (forward-only), COD remittance in the ledger, ship / confirm received / handover (5 tries, returns a result so wrong tries are saved) / new code, `shipment_event` and `demo_fast_forward` for `app_integrations`, 2-day auto-complete timer, reviews (one per side, 30 days, public when both wrote or after 14 days), `rating_summary`, `public_reviews`
+- [x] Backend: `app/integrations/mockcourier.py`, routes for ship, confirm-received, handover, handover-code, review, `/profiles/{username}/reviews`, `/shipping/webhooks/mock`; demo routes `/mock-courier/orders/{id}/advance`, `/demo/orders/{id}/fast-forward`; order detail adds shipment, reviews, `actions` incl. demo tools; profile adds rating
+- [x] Frontend: order page actions with confirm dialogs, handover form, tracking timeline (waybill marked demo), "Test-mode tools" box (Advance tracking, Skip ahead), review form and cards; seller page rating line + public reviews
+- Checks passed: Ruff; pytest 227/227 (+8 integration: delivery release with fee/courier split, auto-complete, COD remittance, forged/duplicate/backward courier webhooks, handover lock + new code, cash meetup, fast-forward only for participants, double-blind reviews and profile rating; +1 unit: MockCourier, demo routes off); ESLint; typecheck; Vitest 93/93 (+3: handover form, review form, tracking); browser as seller: Mark as shipped (dialog) → 4× Advance tracking → Delivered with auto-complete time → Skip ahead → Completed → 5-star review (blind note shown) → wallet ₱13,900 → withdraw ₱500 → ₱13,400
+- Fixed during phase: the order page mounted its confirm dialog only when needed, and the dialog's close-on-unmount ran during React's dev double mount, so it closed at once (Phase 10's Cancel was affected too). Now always mounted, like other pages.
+- Note: order pages poll only while the tab is visible (same as chat); a page opened in a hidden tab loads when shown
 
 ### Phase 12 — Disputes and admin moderation
 - [ ] Disputes (open, refund, contest, withdraw, escalate, 48 h timer), admin role + `app.is_admin()`, restricted users, reports queue, listing moderation, audit log, `/admin` pages, `npm run db:admin`; tests (T30–T31)
@@ -180,3 +185,4 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 | 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |
 | 2026-10-13 | 9 | Transactions research (2 subagents) + design docs. No code, no dependencies. Carousell PH has no in-app payment; Vinted model simulated instead. |
 | 2026-10-13 | 10 | Simulated payments core. No new dependencies (hmac/hashlib/secrets from the standard library; pgcrypto already installed). |
+| 2026-10-13 | 11 | Fulfilment and reviews. No new dependencies. Found and fixed the conditional confirm dialog closing itself. |

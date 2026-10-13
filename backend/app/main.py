@@ -15,6 +15,7 @@ from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimit
 from app.core.ratelimit import RateLimiter
 from app.core.security import TokenVerifier
+from app.integrations.mockcourier import MockCourier
 from app.integrations.mockpay import MockPay
 from app.services.auth_admin import AuthAdmin
 from app.services.storage import Storage
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.auth_admin = AuthAdmin(settings.auth_admin_url, settings.supabase_secret_key, http)
     app.state.rate_limiter = RateLimiter() if settings.rate_limits_enabled else None
     app.state.mockpay = MockPay(settings.mockpay_webhook_secret.get_secret_value())
+    app.state.mockcourier = MockCourier(settings.mockcourier_webhook_secret.get_secret_value())
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):

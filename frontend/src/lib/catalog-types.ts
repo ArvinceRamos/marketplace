@@ -83,4 +83,7 @@ export type PublicProfile = {
   joined_at: string;
   active_listing_count: number;
   follower_count: number;
+  /** Average of public reviews (1 decimal), null when there are none. */
+  rating_average: number | null;
+  rating_count: number;
 };

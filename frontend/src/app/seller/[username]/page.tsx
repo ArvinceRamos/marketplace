@@ -3,11 +3,14 @@ import { Avatar } from "@/components/catalog/avatar";
 import { EmptyState } from "@/components/catalog/empty-state";
 import { ListingGrid, ListingGridSkeleton } from "@/components/catalog/listing-grid";
 import { FollowButton } from "@/components/follow-button";
+import { Stars } from "@/components/orders/stars";
 import { UserSafetyMenu } from "@/components/safety/user-safety-menu";
 import { Pagination } from "@/components/catalog/pagination";
 import { Container, Stack } from "@/components/ui/layout";
-import { getProfileOr404, getSellerListings } from "@/lib/catalog";
+import { getProfileOr404, getSellerListings, getSellerReviews } from "@/lib/catalog";
 import { formatDate } from "@/lib/format";
+import { ratingLine } from "@/lib/orders";
+import { personName } from "@/lib/social";
 
 type Props = PageProps<"/seller/[username]">;
 
@@ -27,9 +30,10 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
   const [{ username }, raw] = await Promise.all([params, searchParams]);
   const pageParam = Array.isArray(raw.page) ? raw.page[0] : raw.page;
   const page = Math.min(50, Math.max(1, Number(pageParam) || 1));
-  const [profile, listings] = await Promise.all([
+  const [profile, listings, reviews] = await Promise.all([
     getProfileOr404(username),
     getSellerListings(username, page),
+    getSellerReviews(username),
   ]);
   const name = profile.display_name ?? profile.username;
   const details = [profile.city?.name, `Joined ${formatDate(profile.joined_at)}`].filter(Boolean);
@@ -47,6 +51,11 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
             <p className="text-small text-fg-muted">@{profile.username}</p>
           </div>
           <p className="text-small text-fg-muted">{details.join(" · ")}</p>
+          <p className="text-small font-medium">
+            <a href="#seller-reviews" className="hover:underline">
+              {ratingLine(profile.rating_average, profile.rating_count)}
+            </a>
+          </p>
           {profile.bio && <p className="max-w-2xl text-body">{profile.bio}</p>}
           <FollowButton username={profile.username} followers={profile.follower_count} />
         </Stack>
@@ -69,6 +78,34 @@ async function SellerContent({ params, searchParams }: Pick<Props, "params" | "s
           pageSize={listings.page_size}
           hrefFor={(p) => `/seller/${profile.username}${p > 1 ? `?page=${p}` : ""}`}
         />
+      </section>
+      <section aria-labelledby="seller-reviews" className="flex flex-col gap-4">
+        <h2 id="seller-reviews" className="text-title">
+          Reviews{" "}
+          <span className="font-regular text-fg-muted" data-numeric>
+            ({reviews.count})
+          </span>
+        </h2>
+        {reviews.items.length === 0 ? (
+          <p className="text-small text-fg-muted">
+            No reviews yet. Reviews come only from completed orders.
+          </p>
+        ) : (
+          <ul className="flex max-w-2xl flex-col divide-y divide-border">
+            {reviews.items.map((r, i) => (
+              <li key={i} className="flex flex-col gap-1 py-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Stars rating={r.rating} />
+                  <span className="text-caption text-fg-muted">
+                    {personName(r.reviewer)} · {r.reviewer_role === "buyer" ? "bought" : "sold"}{" "}
+                    {r.title} · {formatDate(r.created_at)}
+                  </span>
+                </div>
+                {r.comment && <p className="text-small">{r.comment}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </Stack>
   );

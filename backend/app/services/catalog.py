@@ -312,8 +312,10 @@ _PROFILE_SQL = """
            (select count(*) from app.listings l
              where l.seller_id = p.id and l.status = 'active'
                and l.moderation = 'ok') as active_count,
-           app.follower_count(p.id) as follower_count
+           app.follower_count(p.id) as follower_count,
+           rs.average as rating_average, rs.total as rating_count
     from app.profiles p
+    cross join lateral app.rating_summary(p.id) rs
     left join app.locations loc on loc.id = p.city_id
     where p.username = :username
 """
@@ -337,4 +339,6 @@ async def public_profile(db: AsyncConnection, username: str, urls: Urls) -> Publ
         joined_at=row["created_at"],
         active_listing_count=row["active_count"],
         follower_count=row["follower_count"],
+        rating_average=float(row["rating_average"]) if row["rating_average"] is not None else None,
+        rating_count=row["rating_count"],
     )

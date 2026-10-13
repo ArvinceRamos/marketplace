@@ -9,6 +9,7 @@ API errors in app.core.errors. Due timers are applied before every read (lazy).
 import json
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from app.core.db import integration_transaction
 from app.core.errors import AppError, db_app_error
 from app.integrations import signing
+from app.integrations.mockcourier import MockCourier, next_step
 from app.integrations.mockpay import MockPay
 from app.schemas.catalog import SellerSummary
 from app.schemas.orders import (
@@ -29,11 +31,16 @@ from app.schemas.orders import (
     OrderDetail,
     OrderPage,
     OrderPayment,
+    OrderReview,
     OrderRole,
     OrderState,
     OrderSummary,
     OrderTerms,
+    PublicReview,
     Quote,
+    ReviewList,
+    Shipment,
+    ShipmentEvent,
     Wallet,
     WalletEntry,
 )
@@ -146,14 +153,16 @@ async def checkout_options(
     )
 
 
-async def create(db: AsyncConnection, uid: uuid.UUID, body: OrderTerms, urls: Urls) -> OrderDetail:
+async def create(
+    db: AsyncConnection, uid: uuid.UUID, body: OrderTerms, urls: Urls, demo: bool = False
+) -> OrderDetail:
     order_id = (
         await db.execute(
             text(f"select app.order_create({_TERMS_ARGS})"),  # noqa: S608 - fixed
             _terms(body),
         )
     ).scalar_one()
-    return await detail(db, uid, order_id, urls)
+    return await detail(db, uid, order_id, urls, demo)
 
 
 # --- reading -----------------------------------------------------------------------
@@ -233,20 +242,84 @@ async def list_orders(
     )
 
 
-def actions_for(row: Any, uid: uuid.UUID) -> list[str]:
+def actions_for(
+    row: Any, uid: uuid.UUID, *, can_review: bool = False, demo: bool = False
+) -> list[str]:
     """What the caller may do now. The database checks each action again."""
     buyer = row["buyer_id"] == uid
     status = row["status_text"]
+    meetup = row["fulfilment_text"] == "meetup"
+    online = row["payment_text"] == "online"
     actions: list[str] = []
-    if buyer and status == "pending_payment":
+    if status == "pending_payment" and buyer:
         actions += ["pay", "cancel"]
     elif status == "confirmed":
+        if not buyer:
+            actions.append("handover" if meetup else "ship")
+        elif meetup:
+            actions.append("new_code")
         actions.append("cancel")
+    elif status in ("shipped", "delivered") and buyer and online:
+        actions.append("confirm_received")
+    if status == "shipped" and demo:
+        actions.append("advance_tracking")
+    if status in ("pending_payment", "confirmed", "delivered") and demo:
+        actions.append("fast_forward")
+    if can_review:
+        actions.append("review")
     return actions
 
 
+async def _shipment(db: AsyncConnection, order_id: uuid.UUID) -> Shipment | None:
+    row = (
+        await db.execute(
+            text(
+                """select courier, tracking_number, status::text as status
+                   from app.shipments where order_id = :id"""
+            ),
+            {"id": order_id},
+        )
+    ).first()
+    if row is None:
+        return None
+    events = await db.execute(
+        text(
+            """select status::text as status, created_at from app.shipment_events
+               where order_id = :id order by id"""
+        ),
+        {"id": order_id},
+    )
+    return Shipment(
+        courier=row.courier,
+        tracking_number=row.tracking_number,
+        status=row.status,
+        events=[ShipmentEvent(status=e.status, created_at=e.created_at) for e in events],
+    )
+
+
+async def _reviews(
+    db: AsyncConnection, uid: uuid.UUID, order_id: uuid.UUID
+) -> tuple[OrderReview | None, OrderReview | None]:
+    """Mine, and theirs. RLS hides theirs until reviews are public (double-blind)."""
+    mine = theirs = None
+    rows = await db.execute(
+        text(
+            """select reviewer_id, rating, comment, created_at from app.reviews
+               where order_id = :id"""
+        ),
+        {"id": order_id},
+    )
+    for r in rows:
+        review = OrderReview(rating=r.rating, comment=r.comment, created_at=r.created_at)
+        if r.reviewer_id == uid:
+            mine = review
+        else:
+            theirs = review
+    return mine, theirs
+
+
 async def detail(
-    db: AsyncConnection, uid: uuid.UUID, order_id: uuid.UUID, urls: Urls
+    db: AsyncConnection, uid: uuid.UUID, order_id: uuid.UUID, urls: Urls, demo: bool = False
 ) -> OrderDetail:
     await db.execute(text("select app.order_tick(:id)"), {"id": order_id})
     row = (
@@ -274,6 +347,17 @@ async def detail(
                 {"id": order_id},
             )
         ).scalar_one_or_none()
+    mine, theirs = await _reviews(db, uid, order_id)
+    review_until = None
+    if row["status_text"] == "completed" and row["completed_at"] is not None:
+        review_until = row["completed_at"] + timedelta(days=30)
+    other_here = (row["seller_id"] if row["buyer_id"] == uid else row["buyer_id"]) is not None
+    can_review = (
+        review_until is not None
+        and mine is None
+        and other_here
+        and review_until > datetime.now(UTC)
+    )
     return OrderDetail(
         **_summary_fields(row, uid, urls),
         courier=row["courier"],
@@ -294,18 +378,111 @@ async def detail(
         meet_by=row["meet_by"],
         confirm_by=row["confirm_by"],
         handover_code=code,
-        actions=actions_for(row, uid),
+        shipment=await _shipment(db, order_id),
+        my_review=mine,
+        their_review=theirs,
+        review_until=review_until,
+        actions=actions_for(row, uid, can_review=can_review, demo=demo),
     )
 
 
 # --- order actions -----------------------------------------------------------------
 
 
-async def cancel(
-    db: AsyncConnection, uid: uuid.UUID, order_id: uuid.UUID, urls: Urls
+# Simple actions: one database function each, then the fresh detail.
+ACTION_SQL = {
+    "cancel": "select app.order_cancel(:id)",
+    "ship": "select app.order_ship(:id)",
+    "confirm_received": "select app.order_confirm_received(:id)",
+    "new_code": "select app.order_new_handover_code(:id)",
+}
+
+
+async def act(
+    db: AsyncConnection,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    action: str,
+    urls: Urls,
+    demo: bool,
 ) -> OrderDetail:
-    await db.execute(text("select app.order_cancel(:id)"), {"id": order_id})
-    return await detail(db, uid, order_id, urls)
+    await db.execute(text(ACTION_SQL[action]), {"id": order_id})
+    return await detail(db, uid, order_id, urls, demo)
+
+
+async def handover(db: AsyncConnection, order_id: uuid.UUID, code: str) -> str:
+    """'ok', 'wrong_code', or 'locked'. Not an exception, so a wrong try is saved."""
+    return (
+        await db.execute(
+            text("select app.order_handover(:id, :code)"), {"id": order_id, "code": code}
+        )
+    ).scalar_one()
+
+
+async def review(
+    db: AsyncConnection,
+    uid: uuid.UUID,
+    order_id: uuid.UUID,
+    rating: int,
+    comment: str | None,
+    urls: Urls,
+    demo: bool,
+) -> OrderDetail:
+    await db.execute(
+        text("select app.review_create(:id, cast(:rating as smallint), :comment)"),
+        {"id": order_id, "rating": rating, "comment": comment},
+    )
+    return await detail(db, uid, order_id, urls, demo)
+
+
+async def profile_reviews(db: AsyncConnection, username: str, urls: Urls) -> ReviewList | None:
+    """Public reviews about a user, newest first (app.public_reviews checks visibility)."""
+    profile = (
+        await db.execute(
+            text(
+                """select p.id, rs.average, rs.total from app.profiles p
+                   cross join lateral app.rating_summary(p.id) rs
+                   where p.username = :u"""
+            ),
+            {"u": username},
+        )
+    ).first()
+    if profile is None:
+        return None
+    rows = await db.execute(
+        text(
+            """select r.rating, r.comment, r.created_at, r.title, r.by_buyer,
+                      p.username::text as username, p.display_name, p.avatar_path
+               from app.public_reviews(:pid) r
+               left join app.profiles p on p.id = r.reviewer_id
+               order by r.created_at desc limit 50"""
+        ),
+        {"pid": profile.id},
+    )
+    items = [
+        PublicReview(
+            rating=r.rating,
+            comment=r.comment,
+            created_at=r.created_at,
+            reviewer=(
+                SellerSummary(
+                    username=r.username,
+                    display_name=r.display_name,
+                    avatar_url=urls.avatar(r.avatar_path),
+                )
+                if r.username
+                else None
+            ),
+            reviewer_role="buyer" if r.by_buyer else "seller",
+            title=r.title,
+        )
+        for r in rows
+    ]
+    return ReviewList(
+        average=float(profile.average) if profile.average is not None else None,
+        count=profile.total,
+        items=items,
+    )
 
 
 async def start_payment(db: AsyncConnection, order_id: uuid.UUID, provider: MockPay) -> str:
@@ -345,6 +522,78 @@ async def mockpay_session(db: AsyncConnection, uid: uuid.UUID, ref: str) -> Mock
         amount_centavos=row["amount_centavos"],
         status=row["status"],
     )
+
+
+async def advance_tracking(
+    db: AsyncConnection, engine: AsyncEngine | None, order_id: uuid.UUID, courier: MockCourier
+) -> str:
+    """Demo: MockCourier sends the next tracking step. Reads without locking, so the
+    separate integration transaction can't wait on this one."""
+    row = (
+        await db.execute(
+            text(
+                """select s.tracking_number, s.status::text as status from app.shipments s
+                   join app.orders o on o.id = s.order_id
+                   where s.order_id = :id and o.status = 'shipped'"""
+            ),
+            {"id": order_id},
+        )
+    ).first()
+    step = next_step(row.status) if row else None
+    if row is None or step is None:
+        raise AppError(409, "nothing_to_advance", "This parcel has no next tracking step.")
+    body, signature = courier.event(row.tracking_number, step)
+    return await handle_shipping_webhook(engine, courier, body, signature)
+
+
+async def handle_shipping_webhook(
+    engine: AsyncEngine | None, courier: MockCourier, body: bytes, signature: str | None
+) -> str:
+    """Verify and apply a tracking event (public route and the demo button)."""
+    try:
+        courier.verify(body, signature)
+    except signing.SignatureError as exc:
+        logger.warning("Rejected %s webhook: %s", courier.name, exc)
+        raise AppError(400, "bad_signature", "The webhook signature is invalid.") from exc
+    try:
+        event = json.loads(body)
+        params = {
+            "provider": courier.name,
+            "event": str(event["id"]),
+            "tracking": str(event["data"]["tracking_number"]),
+            "status": str(event["data"]["status"]),
+        }
+    except (ValueError, KeyError, TypeError) as exc:
+        raise AppError(400, "bad_event", "The webhook body is not a valid event.") from exc
+    if params["status"] not in ("picked_up", "in_transit", "out_for_delivery", "delivered"):
+        raise AppError(400, "bad_event", "Unknown tracking status.")
+    sql = text(
+        """select app.shipment_event(:provider, :event, :tracking,
+                                     cast(:status as app.shipment_status))"""
+    )
+    async with integration_transaction(engine) as conn:
+        try:
+            result = (await conn.execute(sql, params)).scalar_one()
+        except DBAPIError as exc:
+            if (err := db_app_error(exc)) is not None:
+                raise err from exc
+            raise
+    logger.info("Shipping webhook %s -> %s", params["status"], result)
+    return result
+
+
+async def fast_forward(engine: AsyncEngine | None, claims: dict, order_id: uuid.UUID) -> str:
+    """Demo: move the order's current deadline to now (app_integrations + the
+    caller's verified claims; the function checks they take part in the order)."""
+    async with integration_transaction(engine, claims) as conn:
+        try:
+            return (
+                await conn.execute(text("select app.demo_fast_forward(:id)"), {"id": order_id})
+            ).scalar_one()
+        except DBAPIError as exc:
+            if (err := db_app_error(exc)) is not None:
+                raise err from exc
+            raise
 
 
 async def handle_payment_webhook(

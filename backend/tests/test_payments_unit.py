@@ -74,6 +74,22 @@ def test_demo_routes_are_absent_when_off():
     client = TestClient(create_app(Settings(environment="test", demo_tools_enabled=False)))
     assert client.post("/api/v1/mock-pay/sessions/x/complete").status_code == 404
     assert client.get("/api/v1/mock-pay/sessions/x").status_code == 404
+    oid = "00000000-0000-0000-0000-000000000000"
+    assert client.post(f"/api/v1/mock-courier/orders/{oid}/advance").status_code == 404
+    assert client.post(f"/api/v1/demo/orders/{oid}/fast-forward").status_code == 404
+
+
+def test_mockcourier_steps_and_events():
+    from app.integrations.mockcourier import MockCourier, next_step
+
+    assert next_step("label_created") == "picked_up"
+    assert next_step("out_for_delivery") == "delivered"
+    assert next_step("delivered") is None
+    courier = MockCourier("c")
+    body, header = courier.event("DEMO-JNT-0123456789", "in_transit")
+    courier.verify(body, header)
+    with pytest.raises(signing.SignatureError):
+        MockPay("c").verify(body, header.replace("v1=", "v1=0"))
 
 
 def test_webhook_rejects_bad_signature_before_touching_the_database():

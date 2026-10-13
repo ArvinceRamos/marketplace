@@ -78,8 +78,51 @@ export type OrderDetail = OrderSummary & {
   meet_by: string | null;
   confirm_by: string | null;
   handover_code: string | null;
+  shipment: Shipment | null;
+  my_review: OrderReview | null;
+  /** Hidden until both sides reviewed or 14 days passed (double-blind). */
+  their_review: OrderReview | null;
+  review_until: string | null;
   actions: string[];
 };
+
+export type ShipmentStatus =
+  | "label_created"
+  | "picked_up"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered";
+
+export type Shipment = {
+  courier: Courier;
+  tracking_number: string;
+  status: ShipmentStatus;
+  events: { status: ShipmentStatus; created_at: string }[];
+};
+
+export type OrderReview = { rating: number; comment: string | null; created_at: string };
+
+export type PublicReview = OrderReview & {
+  reviewer: Person | null;
+  reviewer_role: "buyer" | "seller";
+  title: string;
+};
+
+export type ReviewList = { average: number | null; count: number; items: PublicReview[] };
+
+export const SHIPMENT_STEPS: { status: ShipmentStatus; label: string }[] = [
+  { status: "label_created", label: "Label created" },
+  { status: "picked_up", label: "Picked up by courier" },
+  { status: "in_transit", label: "In transit" },
+  { status: "out_for_delivery", label: "Out for delivery" },
+  { status: "delivered", label: "Delivered" },
+];
+
+/** "4.5 ★ (12 reviews)" or "No reviews yet". */
+export function ratingLine(average: number | null, count: number): string {
+  if (!count || average === null) return "No reviews yet";
+  return `${average.toFixed(1)} ★ (${count} review${count === 1 ? "" : "s"})`;
+}
 
 export type MockPaySession = {
   ref: string;
@@ -174,13 +217,19 @@ export function nextStep(order: OrderDetail): string {
       }
       return buyer ? "Waiting for the seller to ship." : "Ship the item within 5 days.";
     case "shipped":
-      return buyer ? "Your parcel is on its way." : "The parcel is on its way.";
+      if (order.payment_method === "cod")
+        return buyer
+          ? "Your parcel is on its way. Pay the courier when it arrives."
+          : "On its way. The courier pays you when the buyer pays on delivery.";
+      return buyer
+        ? "Your parcel is on its way. Tap “Everything is OK” once you have it."
+        : "The parcel is on its way.";
     case "delivered":
       return buyer
         ? "Check the item. Confirm it's OK, or report a problem within 2 days."
         : "Delivered. Money is released when the buyer confirms, or after 2 days.";
     case "completed":
-      return "Done. You can leave a review.";
+      return order.actions.includes("review") ? "Done. You can leave a review." : "Done.";
     case "cancelled":
       return CANCEL_REASON_LABELS[order.cancel_reason ?? ""] ?? "This order was cancelled.";
     case "disputed":

@@ -6,6 +6,7 @@ import {
   formatSigned,
   nextStep,
   pesosToCentavos,
+  ratingLine,
   type CheckoutOptions,
   type OrderDetail,
 } from "./orders";
@@ -41,6 +42,10 @@ const order = (over: Partial<OrderDetail>): OrderDetail => ({
   meet_by: "2026-10-20T00:00:00Z",
   confirm_by: null,
   handover_code: "123456",
+  shipment: null,
+  my_review: null,
+  their_review: null,
+  review_until: null,
   actions: ["cancel"],
   ...over,
 });
@@ -97,4 +102,10 @@ test("checkout defaults to the first deal method the seller offers", () => {
     payment_method: "online",
     courier: undefined,
   });
+});
+
+test("rating line", () => {
+  expect(ratingLine(null, 0)).toBe("No reviews yet");
+  expect(ratingLine(4.5, 1)).toBe("4.5 ★ (1 review)");
+  expect(ratingLine(5, 12)).toBe("5.0 ★ (12 reviews)");
 });

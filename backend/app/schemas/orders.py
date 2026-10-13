@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.schemas.catalog import Courier, SellerSummary
 
@@ -67,6 +67,23 @@ class Withdrawal(BaseModel):
     amount_centavos: Annotated[int, Field(ge=1, le=10_000_000_000)]
 
 
+class HandoverCode(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: Annotated[str, Field(pattern=r"^[0-9]{6}$")]
+
+
+def _strip(value: str | None) -> str | None:
+    return value.strip() if value is not None else None
+
+
+class ReviewCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rating: Annotated[int, Field(ge=1, le=5)]
+    comment: Annotated[str | None, AfterValidator(_strip), Field(max_length=1000)] = None
+
+
 class MockPayOutcome(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -122,6 +139,24 @@ class OrderPage(BaseModel):
     has_next: bool
 
 
+class ShipmentEvent(BaseModel):
+    status: str
+    created_at: datetime
+
+
+class Shipment(BaseModel):
+    courier: Courier
+    tracking_number: str  # a fake DEMO-... waybill
+    status: str
+    events: list[ShipmentEvent]
+
+
+class OrderReview(BaseModel):
+    rating: int
+    comment: str | None
+    created_at: datetime
+
+
 class OrderDetail(OrderSummary):
     courier: Courier | None
     item_price_centavos: int
@@ -141,6 +176,10 @@ class OrderDetail(OrderSummary):
     meet_by: datetime | None
     confirm_by: datetime | None
     handover_code: str | None  # buyer only, open meetup orders
+    shipment: Shipment | None
+    my_review: OrderReview | None
+    their_review: OrderReview | None  # only once reviews are public (double-blind)
+    review_until: datetime | None
     actions: list[str]  # what the caller may do now
 
 
@@ -159,6 +198,25 @@ class MockPaySession(BaseModel):
 class MockPayResult(BaseModel):
     order_id: uuid.UUID
     result: str
+
+
+class HandoverResult(BaseModel):
+    result: Literal["ok", "wrong_code", "locked"]
+
+
+class PublicReview(BaseModel):
+    rating: int
+    comment: str | None
+    created_at: datetime
+    reviewer: SellerSummary | None  # None after that user deleted their account
+    reviewer_role: Literal["buyer", "seller"]
+    title: str
+
+
+class ReviewList(BaseModel):
+    average: float | None
+    count: int
+    items: list[PublicReview]
 
 
 class WalletEntry(BaseModel):

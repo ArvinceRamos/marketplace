@@ -1,4 +1,4 @@
-"""Orders, simulated payments (MockPay), webhooks, and the wallet. TEST MODE only.
+"""Orders, simulated payments and tracking, webhooks, reviews, and the wallet. TEST MODE.
 
 See docs/TRANSACTIONS_DESIGN.md. Demo-only routes live in `demo_router`, which
 create_app mounts only when DEMO_TOOLS_ENABLED is on.
@@ -8,13 +8,18 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import JSONResponse
 
-from app.core.db import UserDb
+from app.core.db import Db, UserDb
+from app.core.errors import AppError, error_body
 from app.core.ratelimit import per_ip, per_user
 from app.core.security import Claims, require_claims, user_id
-from app.integrations.mockpay import SIGNATURE_HEADER, MockPay
+from app.integrations import mockcourier, mockpay
+from app.integrations.mockcourier import MockCourier
+from app.integrations.mockpay import MockPay
 from app.schemas.orders import (
     CheckoutOptions,
+    HandoverCode,
     MockPayOutcome,
     MockPayResult,
     MockPaySession,
@@ -25,6 +30,8 @@ from app.schemas.orders import (
     OrderTerms,
     PayResponse,
     Quote,
+    ReviewCreate,
+    ReviewList,
     Wallet,
     Withdrawal,
 )
@@ -41,8 +48,16 @@ def _urls(request: Request) -> Urls:
     return Urls(request.app.state.settings.public_storage_url)
 
 
+def _demo(request: Request) -> bool:
+    return request.app.state.settings.demo_tools
+
+
 def _mockpay(request: Request) -> MockPay:
     return request.app.state.mockpay
+
+
+def _mockcourier(request: Request) -> MockCourier:
+    return request.app.state.mockcourier
 
 
 # --- checkout ----------------------------------------------------------------------
@@ -75,7 +90,7 @@ async def create_order(
     body: OrderTerms, request: Request, db: UserDb, claims: UserClaims
 ) -> OrderDetail:
     """Place an order. The listing is reserved until the order ends."""
-    return await orders.create(db, user_id(claims), body, _urls(request))
+    return await orders.create(db, user_id(claims), body, _urls(request), _demo(request))
 
 
 # --- orders ------------------------------------------------------------------------
@@ -100,7 +115,7 @@ async def list_orders(
 async def get_order(
     order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
 ) -> OrderDetail:
-    return await orders.detail(db, user_id(claims), order_id, _urls(request))
+    return await orders.detail(db, user_id(claims), order_id, _urls(request), _demo(request))
 
 
 @router.post("/orders/{order_id}/pay", response_model=PayResponse, dependencies=[per_user("pay")])
@@ -109,12 +124,88 @@ async def pay(order_id: uuid.UUID, request: Request, db: UserDb) -> PayResponse:
     return PayResponse(checkout_url=await orders.start_payment(db, order_id, _mockpay(request)))
 
 
+async def _act(action: str, order_id: uuid.UUID, request: Request, db, claims) -> OrderDetail:
+    return await orders.act(db, user_id(claims), order_id, action, _urls(request), _demo(request))
+
+
 @router.post("/orders/{order_id}/cancel", response_model=OrderDetail)
 async def cancel(
     order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
 ) -> OrderDetail:
     """Cancel. A paid order is refunded in full."""
-    return await orders.cancel(db, user_id(claims), order_id, _urls(request))
+    return await _act("cancel", order_id, request, db, claims)
+
+
+@router.post("/orders/{order_id}/ship", response_model=OrderDetail)
+async def ship(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Seller: hand the parcel to the courier. Creates a fake DEMO waybill."""
+    return await _act("ship", order_id, request, db, claims)
+
+
+@router.post("/orders/{order_id}/confirm-received", response_model=OrderDetail)
+async def confirm_received(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Buyer: "Everything is OK". Releases the money to the seller."""
+    return await _act("confirm_received", order_id, request, db, claims)
+
+
+@router.post("/orders/{order_id}/handover-code", response_model=OrderDetail)
+async def new_handover_code(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Buyer: replace the meetup code (and reset wrong tries)."""
+    return await _act("new_code", order_id, request, db, claims)
+
+
+@router.post("/orders/{order_id}/handover", response_model=OrderDetail)
+async def handover(
+    order_id: uuid.UUID, body: HandoverCode, request: Request, db: UserDb, claims: UserClaims
+):
+    """Seller: enter the buyer's code at the meetup. Completes the order.
+
+    A wrong code is answered without raising, so the transaction commits and the
+    wrong try counts (5 tries, then the buyer must make a new code)."""
+    result = await orders.handover(db, order_id, body.code)
+    if result == "wrong_code":
+        return JSONResponse(
+            error_body("wrong_code", "That code is not right. Check it with the buyer."),
+            status_code=422,
+        )
+    if result == "locked":
+        return JSONResponse(
+            error_body(
+                "code_locked",
+                "Too many wrong codes. The buyer needs to make a new code in their order.",
+            ),
+            status_code=409,
+        )
+    return await orders.detail(db, user_id(claims), order_id, _urls(request), _demo(request))
+
+
+@router.post(
+    "/orders/{order_id}/review",
+    response_model=OrderDetail,
+    dependencies=[per_user("order_action")],
+)
+async def review(
+    order_id: uuid.UUID, body: ReviewCreate, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """One review per side, within 30 days of completion. Hidden from the other
+    side until both reviewed or 14 days passed."""
+    return await orders.review(
+        db, user_id(claims), order_id, body.rating, body.comment, _urls(request), _demo(request)
+    )
+
+
+@router.get("/profiles/{username}/reviews", response_model=ReviewList)
+async def profile_reviews(username: str, request: Request, db: Db) -> ReviewList:
+    result = await orders.profile_reviews(db, username.lower()[:30], _urls(request))
+    if result is None:
+        raise AppError(404, "profile_not_found", "This seller does not exist.")
+    return result
 
 
 # --- wallet ------------------------------------------------------------------------
@@ -146,7 +237,19 @@ async def mockpay_webhook(request: Request) -> dict[str, str]:
         request.app.state.engine,
         _mockpay(request),
         await request.body(),
-        request.headers.get(SIGNATURE_HEADER),
+        request.headers.get(mockpay.SIGNATURE_HEADER),
+    )
+    return {"result": result}
+
+
+@router.post("/shipping/webhooks/mock", dependencies=[per_ip("webhook")])
+async def mockcourier_webhook(request: Request) -> dict[str, str]:
+    """Tracking events from MockCourier. Verified by signature."""
+    result = await orders.handle_shipping_webhook(
+        request.app.state.engine,
+        _mockcourier(request),
+        await request.body(),
+        request.headers.get(mockcourier.SIGNATURE_HEADER),
     )
     return {"result": result}
 
@@ -177,3 +280,29 @@ async def mockpay_complete(
         request.app.state.engine, provider, event, signature
     )
     return MockPayResult(order_id=session.order_id, result=result)
+
+
+@demo_router.post(
+    "/mock-courier/orders/{order_id}/advance",
+    response_model=OrderDetail,
+    dependencies=[per_user("pay")],
+)
+async def advance_tracking(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """A participant moves the parcel one tracking step (signed MockCourier event)."""
+    await orders.advance_tracking(db, request.app.state.engine, order_id, _mockcourier(request))
+    return await orders.detail(db, user_id(claims), order_id, _urls(request), True)
+
+
+@demo_router.post(
+    "/demo/orders/{order_id}/fast-forward",
+    response_model=OrderDetail,
+    dependencies=[per_user("pay")],
+)
+async def fast_forward(
+    order_id: uuid.UUID, request: Request, db: UserDb, claims: UserClaims
+) -> OrderDetail:
+    """Skip ahead: the order's current deadline passes now, so its timer applies."""
+    await orders.fast_forward(request.app.state.engine, claims, order_id)
+    return await orders.detail(db, user_id(claims), order_id, _urls(request), True)

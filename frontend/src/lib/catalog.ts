@@ -1,6 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { env } from "@/lib/env";
+import type { ReviewList } from "@/lib/orders";
 import type {
   CategoryNode,
   ListingDetail,
@@ -59,6 +60,10 @@ export async function getProfileOr404(username: string): Promise<PublicProfile> 
 export async function getSellerListings(username: string, page = 1) {
   const q = page > 1 ? `?page=${page}` : "";
   return (await get<ListingPage>(`/profiles/${encodeURIComponent(username)}/listings${q}`))!;
+}
+
+export async function getSellerReviews(username: string): Promise<ReviewList> {
+  return (await get<ReviewList>(`/profiles/${encodeURIComponent(username)}/reviews`))!;
 }
 
 export function findCategory(tree: CategoryNode[], slug: string) {

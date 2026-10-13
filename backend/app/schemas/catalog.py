@@ -141,3 +141,5 @@ class PublicProfile(BaseModel):
     joined_at: datetime
     active_listing_count: int
     follower_count: int = 0
+    rating_average: float | None = None  # public reviews only
+    rating_count: int = 0
