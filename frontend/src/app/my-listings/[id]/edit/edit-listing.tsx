@@ -24,6 +24,7 @@ const STATUS_TEXT: Record<ListingStatus, string> = {
   active: "Live — buyers can see it.",
   paused: "Paused — hidden from search.",
   sold: "Sold — shown as sold.",
+  reserved: "Reserved — an order is in progress. Manage it in Orders.",
 };
 
 const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);

@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
 
+from app.api.v1.orders import demo_router
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.db import create_engine
@@ -14,6 +15,7 @@ from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimit
 from app.core.ratelimit import RateLimiter
 from app.core.security import TokenVerifier
+from app.integrations.mockpay import MockPay
 from app.services.auth_admin import AuthAdmin
 from app.services.storage import Storage
 
@@ -60,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.storage = Storage(settings.storage_api_url, settings.supabase_publishable_key, http)
     app.state.auth_admin = AuthAdmin(settings.auth_admin_url, settings.supabase_secret_key, http)
     app.state.rate_limiter = RateLimiter() if settings.rate_limits_enabled else None
+    app.state.mockpay = MockPay(settings.mockpay_webhook_secret.get_secret_value())
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):
@@ -84,6 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(api_router)
+    if settings.demo_tools:  # TRANSACTIONS_DESIGN §11: absent (404) when off
+        app.include_router(demo_router)
     return app
 
 

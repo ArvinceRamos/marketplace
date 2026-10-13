@@ -25,9 +25,10 @@ export function ListingViewerPanel({
 }) {
   const session = useSession();
   const router = useRouter();
-  const [viewer, setViewer] = useState<Pick<ListingDetail, "is_owner" | "my_conversation_id"> | null>(
-    null,
-  );
+  const [viewer, setViewer] = useState<Pick<
+    ListingDetail,
+    "is_owner" | "my_conversation_id" | "my_open_order_id"
+  > | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
@@ -90,13 +91,24 @@ export function ListingViewerPanel({
   }
 
   const existingChat = viewer?.my_conversation_id;
+  const openOrder = viewer?.my_open_order_id;
   return (
     <div className="flex flex-col gap-2">
+      {openOrder ? (
+        <ButtonLink href={`/orders/${openOrder}`}>View your order</ButtonLink>
+      ) : (
+        status === "active" && (
+          // Guests are sent to log in by the route guard, then come back here.
+          <ButtonLink href={`/checkout/${listingId}`} size="lg">
+            Buy
+          </ButtonLink>
+        )
+      )}
       <div className="grid grid-cols-[1fr_auto] gap-2">
         {existingChat ? (
           <ButtonLink href={`/inbox/${existingChat}`}>Open chat</ButtonLink>
         ) : status === "active" ? (
-          <Button onClick={openChat} disabled={busy}>
+          <Button onClick={openChat} disabled={busy} variant="secondary">
             {busy ? "Opening…" : "Chat with seller"}
           </Button>
         ) : (
@@ -105,7 +117,9 @@ export function ListingViewerPanel({
         <FavoriteButton listingId={listingId} title={title} variant="full" />
       </div>
       {status === "active" && !existingChat && (
-        <p className="text-caption text-fg-muted">Ask questions or make an offer in the chat.</p>
+        <p className="text-caption text-fg-muted">
+          Buy with test-mode checkout, or ask questions and make an offer in the chat.
+        </p>
       )}
       {error && (
         <p role="alert" className="text-caption text-danger">

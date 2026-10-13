@@ -124,6 +124,7 @@ test("status actions match the server's allowed transitions", () => {
     active: ["paused", "sold"],
     paused: ["active", "sold"],
     sold: ["paused"],
+    reserved: [], // only its order moves a reserved listing
   });
   // Marking sold always asks first.
   expect(STATUS_ACTIONS.active.find((a) => a.to === "sold")?.confirm).toBeDefined();

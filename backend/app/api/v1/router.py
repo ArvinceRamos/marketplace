@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import catalog, follows, health, listings, me, safety, social
+from app.api.v1 import catalog, follows, health, listings, me, orders, safety, social
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health.router)
@@ -10,3 +10,4 @@ api_router.include_router(listings.router)
 api_router.include_router(social.router)
 api_router.include_router(safety.router)
 api_router.include_router(follows.router)
+api_router.include_router(orders.router)

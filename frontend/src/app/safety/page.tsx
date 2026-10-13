@@ -12,13 +12,17 @@ export default function SafetyPage() {
   return (
     <Page title="Safety tips" width="prose">
       <InfoIntro updated="13 October 2026">
-        Marketplace connects buyers and sellers. We do not handle payments or deliveries, and we
-        cannot get your money back. These tips help you stay safe.
+        Marketplace connects buyers and sellers. We do not handle real payments or deliveries, and
+        we cannot get your money back. These tips help you stay safe.
       </InfoIntro>
 
       <InfoSection id="payments" title="Payments happen outside the app">
         <InfoList>
-          <li>Marketplace never asks you to pay through a link, and never holds money for you.</li>
+          <li>
+            The Buy button and MockPay are a <strong>test-mode demo</strong>: no real money moves,
+            and they never ask for card or bank details. Anyone asking you for those is a scammer.
+          </li>
+          <li>Marketplace never asks you to pay through an outside link, and never holds real money for you.</li>
           <li>Never share a one-time PIN (OTP), your bank or e-wallet password, or your card details.</li>
           <li>
             Check that money has arrived in your own bank or e-wallet app. Screenshots of a

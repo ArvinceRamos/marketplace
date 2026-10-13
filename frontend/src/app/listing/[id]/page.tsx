@@ -92,9 +92,9 @@ async function ListingContent({ params }: Pick<Props, "params">) {
           <SellerCard listing={listing} />
 
           <p className="rounded-md bg-surface-muted p-4 text-caption text-fg-muted">
-            Payments and delivery are arranged between you and the seller, outside this site. Meet
-            in a public place, check the item before paying, and never send money in advance to
-            someone you have not met.
+            Checkout on this site is a test-mode demo: no real money moves. Real payments and
+            delivery are arranged between you and the seller. Meet in a public place, check the
+            item before paying, and never send money in advance to someone you have not met.
           </p>
         </div>
       </div>
@@ -173,7 +173,9 @@ function StatusBanner({ status }: { status: ListingDetail["status"] }) {
   const text =
     status === "sold"
       ? "This item has been sold."
-      : status === "paused"
+      : status === "reserved"
+        ? "This item is reserved for a buyer's order."
+        : status === "paused"
         ? "The seller has paused this listing for now."
         : "This listing is not published.";
   return (

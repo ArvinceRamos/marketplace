@@ -76,6 +76,7 @@ export function listingNotice(listing: ConversationSummary["listing"]): string |
   if (!listing || listing.status === "deleted") return "This item is no longer available.";
   if (listing.status === "sold") return "This item is sold.";
   if (listing.status === "paused") return "The seller paused this listing.";
+  if (listing.status === "reserved") return "This item is reserved for an order.";
   return null;
 }
 

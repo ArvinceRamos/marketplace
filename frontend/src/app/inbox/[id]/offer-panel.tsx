@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
@@ -120,7 +120,7 @@ export function OfferPanel({
         <ConfirmDialog
           open={confirmAccept}
           title={`Accept ${formatPrice(pending.amount_centavos)}?`}
-          body="The buyer will see that you accepted. Agree on payment and meetup in this chat, then mark the item as sold when the deal is done."
+          body="The buyer can then buy it at this price with checkout, or you can agree on payment and meetup in this chat and mark the item as sold when the deal is done."
           action="Accept offer"
           pending={busy}
           onConfirm={() => respond("accept")}
@@ -130,11 +130,29 @@ export function OfferPanel({
     );
   }
 
-  if (!detail.can_offer) return errorLine || null;
+  // An accepted offer can be bought at its price with test-mode checkout.
+  const accepted =
+    buyer && detail.latest_offer?.status === "accepted" && detail.listing?.status === "active"
+      ? detail.latest_offer
+      : null;
+  const buyBanner = accepted && detail.listing && (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-success-soft p-3">
+      <p className="text-small">
+        Your offer of <strong data-numeric>{formatPrice(accepted.amount_centavos)}</strong> was
+        accepted.
+      </p>
+      <ButtonLink size="sm" href={`/checkout/${detail.listing.id}?offer=${accepted.id}`}>
+        Buy at {formatPrice(accepted.amount_centavos)}
+      </ButtonLink>
+    </div>
+  );
+
+  if (!detail.can_offer) return buyBanner || errorLine || null;
 
   if (!making) {
     return (
       <div className="flex flex-col gap-2">
+        {buyBanner}
         <Button variant="secondary" size="sm" className="self-start" onClick={() => setMaking(true)}>
           Make an offer
         </Button>

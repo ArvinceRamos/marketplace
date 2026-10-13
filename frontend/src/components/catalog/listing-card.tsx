@@ -8,6 +8,7 @@ import { CONDITION_LABELS, formatPrice } from "@/lib/format";
 const STATUS_BADGE: Partial<Record<Card["status"], string>> = {
   sold: "Sold",
   paused: "Paused",
+  reserved: "Reserved",
 };
 
 /** Borderless product card: photo first, then price, title, and quiet details. */

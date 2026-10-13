@@ -113,6 +113,12 @@ function AccountMenu() {
         <Link href="/my-listings" className={menuLink}>
           My listings
         </Link>
+        <Link href="/orders" className={menuLink}>
+          Orders
+        </Link>
+        <Link href="/wallet" className={menuLink}>
+          Wallet
+        </Link>
         <Link href="/following" className={menuLink}>
           Following
         </Link>

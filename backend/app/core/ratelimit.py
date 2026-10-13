@@ -40,6 +40,11 @@ RULES: dict[str, tuple[Rule, ...]] = {
     "block": (Rule(30, HOUR),),  # block and unblock share one budget
     "follow": (Rule(60, HOUR),),  # follow and unfollow share one budget
     "search": (Rule(120, MINUTE),),
+    "create_order": (Rule(20, HOUR),),
+    "pay": (Rule(30, HOUR),),  # starting a payment and MockPay's buttons
+    "withdraw": (Rule(10, DAY),),
+    "order_action": (Rule(30, DAY),),  # disputes and reviews
+    "webhook": (Rule(120, MINUTE),),  # per IP
 }
 
 # Drop empty keys every this many checks, so memory stays bounded by active users.

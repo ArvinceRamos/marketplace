@@ -104,3 +104,23 @@ test("nothing to do when offers are not possible", () => {
   );
   expect(container.textContent).toBe("");
 });
+
+test("buyer with an accepted offer can buy at that price; seller can't", () => {
+  const accepted: Offer = { ...pending, status: "accepted", responded_at: "2026-10-13T01:00:00Z" };
+  render(<OfferPanel detail={detail({ latest_offer: accepted })} onChanged={vi.fn()} />);
+  const link = screen.getByRole("link", { name: "Buy at ₱14,000" });
+  expect(link.getAttribute("href")).toBe("/checkout/l1?offer=o1");
+  cleanup();
+
+  render(
+    <OfferPanel detail={detail({ latest_offer: accepted, role: "selling" })} onChanged={vi.fn()} />,
+  );
+  expect(screen.queryByRole("link", { name: /Buy at/ })).toBeNull();
+  cleanup();
+
+  // Not offered once the item is reserved or sold.
+  const reserved = detail({ latest_offer: accepted });
+  reserved.listing = { ...reserved.listing!, status: "reserved" };
+  render(<OfferPanel detail={reserved} onChanged={vi.fn()} />);
+  expect(screen.queryByRole("link", { name: /Buy at/ })).toBeNull();
+});

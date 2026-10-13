@@ -30,7 +30,7 @@ export type ListingCard = {
   title: string;
   price_centavos: number;
   condition: Condition;
-  status: "draft" | "active" | "paused" | "sold";
+  status: "draft" | "active" | "paused" | "sold" | "reserved";
   city: CityRef;
   cover_thumb_url: string | null;
   seller: { username: string; display_name: string | null; avatar_url: string | null };
@@ -62,6 +62,7 @@ export type ListingDetail = ListingCard & {
   is_owner: boolean;
   // Only meaningful for a signed-in viewer.
   is_favorited: boolean;
+  my_open_order_id?: string | null;
   my_conversation_id: string | null;
 };
 

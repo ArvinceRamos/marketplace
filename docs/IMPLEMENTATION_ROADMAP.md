@@ -16,7 +16,8 @@ Last updated: 2026-10-13
 - **Phase 7: done (2026-10-13), committed 5bb4f56.** Sizes, follow sellers + feed, deal options (labels only).
 - **Phase 8: done (2026-10-13), committed e9d92b8.** Release checks; see docs/KNOWN_LIMITATIONS.md.
 - **Phase 9: done (2026-10-13).** Transactions research + design (docs only). Phases 10–13 approved in the same message ("do everything from phase 9 to 13").
-- **Exact next step:** Phase 10 — simulated payments core (migration `20261013000400_orders_payments.sql`, `app/integrations/mockpay.py`, orders/wallet API, checkout/orders/wallet pages). Deployment only after you say "Deploy now."
+- **Phase 10: done (2026-10-13).** Test-mode checkout: orders, MockPay + signed webhooks, ledger, wallet, reserved listings.
+- **Exact next step:** Phase 11 — fulfilment (ship + MockCourier tracking, handover code, COD remittance, confirm received, timers, demo fast-forward) and reviews. Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -139,11 +140,13 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 - [x] Updated PRD (non-goals → "real" payments; §9 scope), DATABASE_SCHEMA §9, API spec (orders, webhooks, admin, limits), SECURITY_PLAN T23–T32, USER_FLOWS §9–10, ARCHITECTURE (`app_integrations`, definer functions)
 - Checks: docs only; cross-read for consistency (states, timers, endpoints, threats). No code changed.
 
-### Phase 10 — Simulated payments core
-- [ ] Migration: enums, `reserved` listing status, orders, order_secrets, payments, provider_events, ledger (zero-sum + append-only), `app_integrations` role, definer functions (quote, create, cancel, tick, payment start/succeeded/failed, withdraw), RLS
-- [ ] Backend: `app/integrations/` (provider interface, MockPay, HMAC signing), orders + wallet + webhook + MockPay routes, settings (`DEMO_TOOLS_ENABLED`, secrets), account-deletion guard
-- [ ] Frontend: Buy button, `/checkout/[listingId]`, `/pay/mock/[ref]`, `/orders`, `/orders/[id]`, `/wallet`, test-mode banner, Account menu links
-- [ ] Tests: state transitions, T23–T27, RLS, frontend units; browser run-through
+### Phase 10 — Simulated payments core (done 2026-10-13)
+- [x] Migrations `20261013000400_reserved_status.sql` (enum value alone: it can't be used in the transaction that adds it) and `20261013000500_orders_payments.sql`: order/payment/ledger enums, orders, order_secrets, payments, provider_events, ledger (zero-sum deferred trigger, append-only trigger), `app_integrations` role, definer functions (terms/quote/create/cancel/tick, payment start/succeeded/failed, withdraw), profile delete guard, RLS (read-only for users)
+- [x] Errors from definer functions use SQLSTATE `MKnnn` + hint; `app.core.errors.db_app_error` maps them (one mechanism for every money function)
+- [x] Backend: `app/integrations/` (signing, MockPay with provider protocol), `app/api/v1/orders.py` (checkout, quote, orders, pay, cancel, wallet, withdraw, webhook; demo router for MockPay buttons, mounted only with demo tools), settings (`DEMO_TOOLS_ENABLED`, webhook secrets; production refuses dev secrets), account deletion refuses open orders / balance, listing `reserved` handling, `my_open_order_id` on listing detail
+- [x] Frontend: Buy button + "View your order", `/checkout/[listingId]` (server-priced summary), `/pay/mock/[ref]`, `/orders` (Buying/Selling), `/orders/[id]` (status, deadline, handover code, pay/cancel, 15 s polling), `/wallet` (balances, history, withdraw), test-mode notice, "Buy at ₱X" on an accepted offer in chat, Reserved tab/badge/banner, Account menu (Orders, Wallet), route guard, safety/footer copy
+- Checks passed: Ruff; pytest 13 new unit (signing, MockPay, settings, demo routes off) + 12 new integration (quotes and option rules, offer price, reserve/pay/refund, cash+COD, forged/stale/unsigned/wrong-amount/duplicate webhooks, late payment refund, abandoned checkout frees the listing, ship/meet deadlines, wallet withdraw, ledger read-only even for superuser, account deletion waits); full backend 218 before the final production-settings test fix, then that test passed; ESLint; typecheck; Vitest 90/90 (+7); migrations replayed with `supabase db reset`; demo data reloaded; browser: listing → Buy → checkout (meetup/delivery switch, ₱695 + ₱15 fee, courier fee) → MockPay → order confirmed with ship-by deadline; orders list; wallet shows the payment; 375 px no sideways scroll on checkout, orders, wallet
+- Notes: `next build` deferred to Phase 13 (dev server running); `ENVIRONMENT=production` (Docker image) now needs `MOCKPAY_WEBHOOK_SECRET` and `MOCKCOURIER_WEBHOOK_SECRET`; test cleanup closes test users' orders and zeroes balances as superuser before deleting them
 
 ### Phase 11 — Fulfilment, completion, reviews
 - [ ] Ship + fake waybill, MockCourier webhook, tracking steps, COD remittance, confirm received, handover code (5 tries), timers, demo fast-forward
@@ -176,3 +179,4 @@ Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15
 | 2026-10-13 | 7 | Closets, sizes, deal options. No new dependencies. Escrow and courier APIs left out on purpose (business registration, fees, BSP rules; ₱0 rule). Local DB reset to replay migrations. |
 | 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |
 | 2026-10-13 | 9 | Transactions research (2 subagents) + design docs. No code, no dependencies. Carousell PH has no in-app payment; Vinted model simulated instead. |
+| 2026-10-13 | 10 | Simulated payments core. No new dependencies (hmac/hashlib/secrets from the standard library; pgcrypto already installed). |

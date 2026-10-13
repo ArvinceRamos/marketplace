@@ -10,6 +10,10 @@ const PROTECTED = [
   "/favorites",
   "/following",
   "/inbox",
+  "/checkout",
+  "/pay",
+  "/orders",
+  "/wallet",
 ];
 const GUEST_ONLY = ["/login", "/register"];
 

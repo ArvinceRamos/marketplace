@@ -89,7 +89,21 @@ def _trigger_message(exc: DBAPIError) -> str | None:
     return first_line.split(": ", 1)[-1].strip() or None
 
 
+def db_app_error(exc: DBAPIError) -> AppError | None:
+    """Errors our database functions raise for users: SQLSTATE 'MKnnn' (nnn = HTTP
+    status), MESSAGE = error code, HINT = plain-language text (TRANSACTIONS_DESIGN)."""
+    code = sqlstate(exc)
+    if not code or not code.startswith("MK") or not code[2:].isdigit():
+        return None
+    source = getattr(exc.orig, "__cause__", None) or exc.orig
+    message = getattr(source, "message", None) or "error"
+    hint = getattr(source, "hint", None) or "That can't be done right now."
+    return AppError(int(code[2:]), message, hint)
+
+
 async def _db_error(request: Request, exc: DBAPIError) -> JSONResponse:
+    if (app_error := db_app_error(exc)) is not None:
+        return await _app_error(request, app_error)
     code = sqlstate(exc)
     if code == "23505":
         return JSONResponse(error_body("already_exists", "That already exists."), status_code=409)

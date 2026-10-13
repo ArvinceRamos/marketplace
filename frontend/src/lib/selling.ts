@@ -175,12 +175,15 @@ export const STATUS_ACTIONS: Record<ListingStatus, StatusAction[]> = {
     },
   ],
   sold: [{ to: "paused", label: "Undo sold" }],
+  // Held by an order; only the order moves it (finish or cancel it in Orders).
+  reserved: [],
 };
 
 // Tabs on /my-listings (docs/USER_FLOWS.md §3).
 export const MY_LISTING_TABS: { status: ListingStatus; label: string; empty: string }[] = [
   { status: "active", label: "Active", empty: "Nothing live right now." },
   { status: "paused", label: "Paused", empty: "No paused listings." },
+  { status: "reserved", label: "Reserved", empty: "Nothing reserved by an order." },
   { status: "sold", label: "Sold", empty: "Nothing sold yet." },
   { status: "draft", label: "Drafts", empty: "No drafts." },
 ];

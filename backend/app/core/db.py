@@ -9,6 +9,7 @@ connections never carry one user's identity into another request.
 
 import json
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -22,6 +23,8 @@ from app.core.security import Claims, optional_claims, require_claims
 _SET_ROLE = {
     "anon": text("set local role anon"),
     "authenticated": text("set local role authenticated"),
+    # Webhooks and demo tools: may only execute the integration functions.
+    "app_integrations": text("set local role app_integrations"),
 }
 _SET_CLAIMS = text("select set_config('request.jwt.claims', :claims, true)")
 
@@ -38,6 +41,20 @@ async def _transaction(request: Request, claims: Claims | None) -> AsyncIterator
     async with engine.begin() as conn:  # commits on success, rolls back on error
         await conn.execute(_SET_ROLE[role])
         await conn.execute(_SET_CLAIMS, {"claims": json.dumps(claims or {"role": "anon"})})
+        yield conn
+
+
+@asynccontextmanager
+async def integration_transaction(
+    engine: AsyncEngine | None, claims: Claims | None = None
+) -> AsyncIterator[AsyncConnection]:
+    """A transaction as `app_integrations` (ARCHITECTURE §4). Webhooks pass no claims;
+    demo tools pass the verified caller's, so the functions can check who asks."""
+    if engine is None:
+        raise AppError(503, "db_unavailable", "The service is starting up. Try again shortly.")
+    async with engine.begin() as conn:
+        await conn.execute(_SET_ROLE["app_integrations"])
+        await conn.execute(_SET_CLAIMS, {"claims": json.dumps(claims or {})})
         yield conn
 
 

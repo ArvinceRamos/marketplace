@@ -164,7 +164,43 @@ class Users:
                 timeout=30,
             ).raise_for_status()
 
+    def settle_money(self) -> None:
+        """Account deletion is refused with open orders or a wallet balance (T32).
+        Test users are cleaned up as superuser: open orders are closed and balances
+        withdrawn with a balanced ledger transaction."""
+
+        async def run() -> None:
+            conn = await asyncpg.connect(self.stack.admin_dsn)
+            ids = list(self.created)
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """update app.orders set status = 'cancelled', cancelled_at = now()
+                           where app.order_is_open(status)
+                             and (buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))""",
+                        ids,
+                    )
+                    await conn.execute(
+                        """with b as (
+                             select user_id, sum(amount_centavos) as bal, gen_random_uuid() as txn
+                             from app.ledger_entries
+                             where account = 'seller' and user_id = any($1::uuid[])
+                             group by user_id having sum(amount_centavos) <> 0)
+                           insert into app.ledger_entries
+                             (txn_id, account, user_id, amount_centavos, memo)
+                           select txn, 'seller'::app.ledger_account, user_id, -bal, 'Test cleanup'
+                             from b
+                           union all
+                           select txn, 'external', user_id, bal, 'Test cleanup' from b""",
+                        ids,
+                    )
+            finally:
+                await conn.close()
+
+        asyncio.run(run())
+
     def cleanup(self) -> None:
+        self.settle_money()
         self.remove_files()
         # Fail loudly: a user that cannot be deleted is a real bug (account deletion).
         failed = [

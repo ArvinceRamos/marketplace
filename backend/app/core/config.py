@@ -1,8 +1,13 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Local/test signing secrets for the simulated providers. Not secrets: production
+# refuses to start with them (see Settings._check_production).
+DEV_MOCKPAY_SECRET = "mockpay-local-dev-only"  # noqa: S105
+DEV_MOCKCOURIER_SECRET = "mockcourier-local-dev-only"  # noqa: S105
 
 
 class Settings(BaseSettings):
@@ -31,6 +36,28 @@ class Settings(BaseSettings):
     # How many proxies in front of the API append to X-Forwarded-For (Render: 1).
     # 0 = use the socket address and ignore the header (it can be faked).
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+
+    # Test mode (docs/TRANSACTIONS_DESIGN.md §11). Payments are always simulated.
+    # Demo tools (MockPay buttons, tracking steps, fast-forward) default to on
+    # except in production, where they must be switched on explicitly.
+    demo_tools_enabled: bool | None = None
+    mockpay_webhook_secret: SecretStr = SecretStr(DEV_MOCKPAY_SECRET)
+    mockcourier_webhook_secret: SecretStr = SecretStr(DEV_MOCKCOURIER_SECRET)
+
+    @model_validator(mode="after")
+    def _check_production(self) -> "Settings":
+        if self.environment == "production" and (
+            self.mockpay_webhook_secret.get_secret_value() == DEV_MOCKPAY_SECRET
+            or self.mockcourier_webhook_secret.get_secret_value() == DEV_MOCKCOURIER_SECRET
+        ):
+            raise ValueError("Set MOCKPAY_WEBHOOK_SECRET and MOCKCOURIER_WEBHOOK_SECRET.")
+        return self
+
+    @property
+    def demo_tools(self) -> bool:
+        if self.demo_tools_enabled is None:
+            return self.environment != "production"
+        return self.demo_tools_enabled
 
     @property
     def cors_origin_list(self) -> list[str]:

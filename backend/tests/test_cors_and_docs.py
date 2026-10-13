@@ -22,7 +22,12 @@ def test_cors_rejects_other_origin(client):
 
 
 def test_docs_hidden_in_production():
-    client = TestClient(create_app(Settings(environment="production")))
+    settings = Settings(
+        environment="production",
+        mockpay_webhook_secret="x" * 32,
+        mockcourier_webhook_secret="y" * 32,
+    )
+    client = TestClient(create_app(settings))
     assert client.get("/docs").status_code == 404
     assert client.get("/openapi.json").status_code == 404
 

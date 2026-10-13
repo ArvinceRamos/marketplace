@@ -18,6 +18,7 @@ class ListingStatus(StrEnum):
     active = "active"
     paused = "paused"
     sold = "sold"
+    reserved = "reserved"  # held by an order (test-mode checkout); set by the database
 
 
 class PaymentMethod(StrEnum):
@@ -120,6 +121,7 @@ class ListingDetail(ListingCard):
     # Only filled in for a signed-in viewer.
     is_favorited: bool = False
     my_conversation_id: uuid.UUID | None = None
+    my_open_order_id: uuid.UUID | None = None  # the viewer's open order for this item
 
 
 class ListingPage(BaseModel):

@@ -221,6 +221,22 @@ async def delete_account(
             "That doesn't match your username.",
             {"confirm_username": "Type your username exactly as shown."},
         )
+    # Money history must not be lost (SECURITY_PLAN T32). A trigger checks again.
+    money = (
+        await db.execute(
+            text(
+                """select exists (select 1 from app.orders where :uid in (buyer_id, seller_id)
+                                  and app.order_is_open(status)) as open_orders,
+                          (select coalesce(sum(amount_centavos), 0) from app.ledger_entries
+                            where account = 'seller' and user_id = :uid) as balance"""
+            ),
+            {"uid": uid},
+        )
+    ).one()
+    if money.open_orders:
+        raise AppError(409, "open_orders", "Finish or cancel your open orders first.")
+    if money.balance > 0:
+        raise AppError(409, "wallet_balance", "Withdraw your wallet balance first.")
 
     folder = str(uid)
     for bucket in (LISTING_BUCKET, AVATAR_BUCKET):

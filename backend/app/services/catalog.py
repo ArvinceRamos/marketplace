@@ -238,6 +238,8 @@ _IMAGES_SQL = """
 async def listing_detail(
     db: AsyncConnection, listing_id: uuid.UUID, viewer_id: uuid.UUID | None, urls: Urls
 ) -> ListingDetail | None:
+    # An abandoned checkout frees the listing as soon as anyone looks at it.
+    await db.execute(text("select app.listing_tick(:id)"), {"id": listing_id})
     row = (await db.execute(text(_DETAIL_SQL), {"id": listing_id})).mappings().first()
     if row is None:
         return None  # missing, deleted, or not visible to this caller (RLS)
@@ -287,12 +289,19 @@ async def _viewer_state(
                 """select exists (select 1 from app.favorites
                                   where user_id = :uid and listing_id = :id) as fav,
                           (select id from app.conversations
-                            where listing_id = :id and buyer_id = :uid) as conv"""
+                            where listing_id = :id and buyer_id = :uid) as conv,
+                          (select id from app.orders
+                            where listing_id = :id and buyer_id = :uid
+                              and app.order_is_open(status)) as open_order"""
             ),
             {"id": listing_id, "uid": viewer_id},
         )
     ).one()
-    return {"is_favorited": row.fav, "my_conversation_id": row.conv}
+    return {
+        "is_favorited": row.fav,
+        "my_conversation_id": row.conv,
+        "my_open_order_id": row.open_order,
+    }
 
 
 # --- public profiles ---------------------------------------------------------------

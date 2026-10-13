@@ -18,6 +18,7 @@ const MOVED: Record<ListingStatus | "deleted", string> = {
   paused: "Listing paused. Find it under Paused.",
   sold: "Marked as sold. Find it under Sold.",
   draft: "Saved as a draft.",
+  reserved: "Reserved by an order.",
   deleted: "Listing deleted.",
 };
 

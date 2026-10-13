@@ -28,7 +28,12 @@ TRANSITIONS: dict[str, set[str]] = {
     "active": {"paused", "sold"},
     "paused": {"active", "sold"},
     "sold": {"paused"},
+    "reserved": set(),  # only its order moves it (TRANSACTIONS_DESIGN §4)
 }
+
+_RESERVED = AppError(
+    409, "listing_reserved", "This item is reserved for an order. Finish or cancel the order first."
+)
 
 # Columns a seller may edit. SQL is built only from this fixed list.
 _EDITABLE = (
@@ -199,6 +204,8 @@ async def change_status(
     old = current["status"]
     if old == new:
         return  # repeating a click is harmless
+    if old == "reserved":
+        raise _RESERVED
     if new not in TRANSITIONS[old]:
         raise AppError(409, "invalid_status_change", f"A {old} listing can't be changed to {new}.")
     if new == "active" and await _photo_count(db, listing_id) == 0:
@@ -211,7 +218,8 @@ async def change_status(
 
 async def delete_listing(db: AsyncConnection, uid: uuid.UUID, listing_id: uuid.UUID) -> list[str]:
     """Soft delete. Returns the photo files to remove from Storage after commit."""
-    await _lock_own(db, listing_id, uid)
+    if (await _lock_own(db, listing_id, uid))["status"] == "reserved":
+        raise _RESERVED
     await db.execute(
         text("update app.listings set status = 'deleted' where id = :id"), {"id": listing_id}
     )
