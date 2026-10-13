@@ -153,7 +153,31 @@ flowchart LR
   listings are removed with those listings. Chats where they were the buyer stay for the seller,
   showing "Deleted user".
 
-## 9. Later: deal completion and reviews
-1. After an accepted offer, either side taps "Mark deal completed".
-2. The other side confirms within 14 days (or the request lapses).
-3. Only then can each side leave one review (1–5 stars + text) for that deal.
+## 9. Buy with test-mode checkout (Phases 10–11)
+State machine and rules: `TRANSACTIONS_DESIGN.md`. Every step shows "Test mode — no real money".
+```mermaid
+flowchart LR
+  A["/listing/id: Buy"] --> B["/checkout/listingId: meetup or delivery, payment, courier, totals"]
+  C["Chat: accepted offer → Buy at ₱X"] --> B
+  B -->|Place order| D{Payment}
+  D -->|Online| E["/pay/mock/ref: Simulate success / failure"] --> F["/orders/id"]
+  D -->|Cash or COD| F
+  F -->|seller: Ship| G[Tracking steps] -->|delivered| H[Everything is OK / Report a problem]
+  F -->|meetup: buyer shows code, seller enters it| I[Completed]
+  H --> I
+  I --> J[Both review within 30 days]
+```
+- `/orders`: Buying and Selling tabs, open and finished orders. `/orders/[id]`: status timeline,
+  amounts, deadlines, the buttons the caller may use now, tracking, handover code (buyer only),
+  review form, dispute box.
+- `/wallet`: available and pending balance, history, "Withdraw to Demo bank".
+- Seller page: average rating, number of reviews, recent public reviews.
+
+## 10. Disputes and admin (Phase 12)
+1. Buyer taps "Report a problem" (delivered, within 2 days; or "Not received" while shipped).
+2. Seller has 48 h: Refund (buyer gets the full total back) or Contest (goes to admin).
+3. Buyer can withdraw (releases the money) or escalate.
+4. Admin (`/admin`): reports queue, disputes queue, users (restrict / unrestrict), audit log.
+   Each action asks for a note and a confirmation.
+5. A restricted user sees a notice and can only finish existing orders; others see
+   "This account is restricted" in chat and on the seller page.

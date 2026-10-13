@@ -14,8 +14,9 @@ Last updated: 2026-10-13
 - **Phase 6a: done (2026-10-13), committed 66dc74a.** Reports, blocks, account deletion, rate limits, `/settings`.
 - **Phase 6b: done (2026-10-13), committed fa62b0a.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
 - **Phase 7: done (2026-10-13), committed 5bb4f56.** Sizes, follow sellers + feed, deal options (labels only).
-- **Phase 8: done (2026-10-13).** Release checks; see docs/KNOWN_LIMITATIONS.md.
-- **Exact next step:** your call. Before launch: the "Before launch" list in KNOWN_LIMITATIONS §1 (moderation tool, privacy contact, Next.js security release, GitHub repo + first CI run). Deployment only after you say "Deploy now."
+- **Phase 8: done (2026-10-13), committed e9d92b8.** Release checks; see docs/KNOWN_LIMITATIONS.md.
+- **Phase 9: done (2026-10-13).** Transactions research + design (docs only). Phases 10–13 approved in the same message ("do everything from phase 9 to 13").
+- **Exact next step:** Phase 10 — simulated payments core (migration `20261013000400_orders_payments.sql`, `app/integrations/mockpay.py`, orders/wallet API, checkout/orders/wallet pages). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -131,8 +132,31 @@ if a seller takes GCash/Maya or ships by J&T etc. Payments and couriers stay **o
 - Checks passed: `supabase db reset` replays all 6 migrations + seed; Ruff; pytest 193/193 on the fresh database (+2 header tests); ESLint; typecheck from a clean state; Vitest 83/83; `next build`; Docker image builds, healthy, runs as `appuser`, docs 404 in production, headers present; `npm audit` production 0 (5 high dev-only, `braces` via ESLint tooling); `pip-audit` 0 known; secret grep of tracked files and git history clean; CI YAML parses
 - Not done: CI has still never run on GitHub (no repo); Next.js security release (due 2026-10-14) not out yet
 
+### Phase 9 — Transactions research and design (done 2026-10-13)
+Approved: built-in MockPay (no provider account), simulated COD, buyer fee ₱15 + 5%, seller fee ₱0.
+- [x] Research (two subagents, Vinted + Carousell help centres): `docs/research/TRANSACTIONS_RESEARCH.md`
+- [x] Design: `docs/TRANSACTIONS_DESIGN.md` (order types, amounts, state machine, timers, MockPay + signed webhooks, ledger, fulfilment, disputes, reviews, admin, test-mode tools)
+- [x] Updated PRD (non-goals → "real" payments; §9 scope), DATABASE_SCHEMA §9, API spec (orders, webhooks, admin, limits), SECURITY_PLAN T23–T32, USER_FLOWS §9–10, ARCHITECTURE (`app_integrations`, definer functions)
+- Checks: docs only; cross-read for consistency (states, timers, endpoints, threats). No code changed.
+
+### Phase 10 — Simulated payments core
+- [ ] Migration: enums, `reserved` listing status, orders, order_secrets, payments, provider_events, ledger (zero-sum + append-only), `app_integrations` role, definer functions (quote, create, cancel, tick, payment start/succeeded/failed, withdraw), RLS
+- [ ] Backend: `app/integrations/` (provider interface, MockPay, HMAC signing), orders + wallet + webhook + MockPay routes, settings (`DEMO_TOOLS_ENABLED`, secrets), account-deletion guard
+- [ ] Frontend: Buy button, `/checkout/[listingId]`, `/pay/mock/[ref]`, `/orders`, `/orders/[id]`, `/wallet`, test-mode banner, Account menu links
+- [ ] Tests: state transitions, T23–T27, RLS, frontend units; browser run-through
+
+### Phase 11 — Fulfilment, completion, reviews
+- [ ] Ship + fake waybill, MockCourier webhook, tracking steps, COD remittance, confirm received, handover code (5 tries), timers, demo fast-forward
+- [ ] Reviews (double-blind, 30-day window), seller rating; tests (T28, T29); UI
+
+### Phase 12 — Disputes and admin moderation
+- [ ] Disputes (open, refund, contest, withdraw, escalate, 48 h timer), admin role + `app.is_admin()`, restricted users, reports queue, listing moderation, audit log, `/admin` pages, `npm run db:admin`; tests (T30–T31)
+
+### Phase 13 — Release and portfolio polish
+- [ ] Full suites, migration replay, Lighthouse, security review, demo orders in every state, README test-mode guide, KNOWN_LIMITATIONS update
+
 ### Later
-- Deal completion + reviews; admin moderation; Realtime chat; reserved status; saved searches; notifications.
+- Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).
 
 ### Deployment (separate; only after you say "Deploy now.")
 - Hosted Supabase project (second free slot), Render (Docker API), Vercel (frontend). Not planned in detail yet.
@@ -151,3 +175,4 @@ if a seller takes GCash/Maya or ships by J&T etc. Payments and couriers stay **o
 | 2026-10-13 | 8 | Release checks. No new dependencies (Lighthouse and pip-audit run once, not installed). Demo data reloaded after the reset. |
 | 2026-10-13 | 7 | Closets, sizes, deal options. No new dependencies. Escrow and courier APIs left out on purpose (business registration, fees, BSP rules; ₱0 rule). Local DB reset to replay migrations. |
 | 2026-10-13 | 6b | Pages, a11y, CSP, review. No new dependencies (Lighthouse run once via `npx`, not installed). `/security-review` can't run without a git remote; same review done by hand. A throwaway local test account was created for checks and deleted through Settings. |
+| 2026-10-13 | 9 | Transactions research (2 subagents) + design docs. No code, no dependencies. Carousell PH has no in-app payment; Vinted model simulated instead. |

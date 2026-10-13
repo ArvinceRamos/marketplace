@@ -1,11 +1,12 @@
 # Product Requirements
 
-Last updated: 2026-10-10 · Status: Phase 0 draft, awaiting approval
+Last updated: 2026-10-13 · Status: Phases 1–8 built; Phases 9–13 add simulated payments (see §9)
 
 ## 1. Summary
 A classifieds marketplace for the Philippines. Sellers post items. Buyers find them, chat,
 make offers, and arrange pickup, meetup, or delivery **on their own**. The app never handles
-money, shipping, or refunds in the MVP.
+money, shipping, or refunds in the MVP. From Phase 10 there is also an optional **simulated**
+protected checkout (test mode only, no real money); see §9 and `TRANSACTIONS_DESIGN.md`.
 
 It is inspired by the public features of Carousell PH. It uses original branding, styling,
 copy, and seed data. Nothing is copied from Carousell's code, logo, photos, or text.
@@ -52,7 +53,7 @@ Every signed-in user can buy and sell. There is no separate seller account.
 | Guest | Browse, search, filter, sort, view listings, categories, and public seller profiles |
 | User (buyer side) | Everything a guest can, plus profile, favorites, chat, offers (make/withdraw), report, block |
 | User (seller side) | Create, edit, publish, pause, mark sold, delete own listings; upload photos; answer chats; accept/reject offers |
-| Admin (future) | Review reports, hide listings, restrict users. Set only server-side; never chosen by the client |
+| Admin (Phase 12) | Review reports, hide listings, restrict users, decide escalated disputes. Set only server-side (`app_metadata.role`); never chosen by the client |
 
 ## 4. MVP scope (Phases 1–7)
 
@@ -82,9 +83,10 @@ Every signed-in user can buy and sell. There is no separate seller account.
 | Mobile app | Website first |
 
 ## 6. Non-goals
-Payments, escrow, wallets, shipping integrations, delivery tracking, refunds, buyer protection,
-paid promotion, ads, verified badges, AI pricing. We never say users, items, or deals are
-"verified" because nothing is verified.
+**Real** payments, escrow, wallets, payouts, shipping integrations, and delivery tracking (Phases
+10–12 only **simulate** them in test mode); returns and partial refunds; KYC; paid promotion, ads,
+verified badges, AI pricing. We never say users, items, or deals are "verified" because nothing is
+verified.
 
 ## 7. Business rules
 1. A user cannot chat about, offer on, or favorite their own listing, and cannot review themselves.
@@ -103,3 +105,22 @@ paid promotion, ads, verified badges, AI pricing. We never say users, items, or 
 - A buyer and seller can chat and settle on an offer.
 - Every security test in `SECURITY_PLAN.md` passes, including unauthorized-access tests.
 - Monthly running cost stays ₱0 for a small group of test users.
+
+## 9. Phases 9–13: simulated transactions (approved 2026-10-13)
+Goal: a fully working portfolio build that shows how a protected marketplace checkout works,
+without real money, provider accounts, or fees. Research: `research/TRANSACTIONS_RESEARCH.md`.
+Design: `TRANSACTIONS_DESIGN.md`.
+
+| Feature | Phase | Notes |
+|---|---|---|
+| Buy button, checkout, orders, MockPay, signed webhooks, ledger, wallet + demo withdrawal, reserved listings | 10 | Online / cash / COD; meetup / delivery; buyer fee ₱15 + 5% |
+| Ship + fake tracking, handover code, COD remittance, auto timers, demo fast-forward, reviews | 11 | Reviews only after a completed order; double-blind |
+| Disputes, admin moderation (reports, listings, users, disputes, audit log), restricted users | 12 | Admin via `app_metadata.role` |
+| Release checks, demo data for every order state, README test-mode guide | 13 | |
+
+Business rules added:
+9. Amounts are always computed by the server; a request never carries a price or fee.
+10. One open order per listing; an order reserves the listing.
+11. Money held for an online order is released only by the buyer's confirmation, the handover
+    code, a timer, or an admin decision; refunds always return the full total.
+12. Every money page shows "Test mode — no real money". The app never asks for card or bank details.

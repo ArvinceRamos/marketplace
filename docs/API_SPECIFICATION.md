@@ -1,6 +1,6 @@
 # API Specification
 
-Last updated: 2026-10-13 · Status: built through Phase 7. FastAPI also serves live OpenAPI docs at
+Last updated: 2026-10-13 · Status: built through Phase 8; orders, payments, admin designed in Phase 9. FastAPI also serves live OpenAPI docs at
 `/docs` (local and non-production only).
 
 Base path: `/api/v1`. JSON in and out, except image upload (multipart).
@@ -193,10 +193,54 @@ kept); 503 `account_deletion_unavailable` (no secret key configured, or Auth ref
 Storage files under `<uid>/` in `listing-images` and `avatars` (with the user's own token), then the
 Auth user (secret key). The token stays valid until it expires, but `/me` then returns 404.
 
-### Later (designed, not in MVP)
-`POST /offers/{id}/deal`, `POST /deals/{id}/confirm`, `POST /deals/{id}/reviews`,
-`GET /profiles/{username}/reviews`, and `/admin/*` routes guarded by a server-side check of
-`app_metadata.role == "admin"` from the verified token.
+### Orders and payments (Phases 10–12, test mode)
+Design: `TRANSACTIONS_DESIGN.md`. Bodies never carry amounts; the database computes them.
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/listings/{id}/checkout` | 🔒 | `?offer_id=`; allowed fulfilments, payment methods, couriers, shipping fees, item price (accepted offer if given) |
+| POST | `/orders/quote` | 🔒 | `{listing_id, offer_id?, fulfilment, payment_method, courier?}` → amounts; nothing saved |
+| POST | `/orders` | 🔒 | same body → 201 order; listing becomes `reserved`. 409 `listing_unavailable`, `own_listing`, `option_unavailable`, `offer_not_usable`; 403 `blocked`, `restricted` |
+| GET | `/orders` | 🔒 | `?role=buying|selling&state=open|done`, paginated |
+| GET | `/orders/{id}` | 🔒 participant/admin | detail: amounts, status, deadlines, shipment + events, dispute, reviews, `handover_code` (buyer only), `actions` (what the caller may do now) |
+| POST | `/orders/{id}/pay` | 🔒 buyer | `pending_payment` → `{checkout_url}` (MockPay) |
+| POST | `/orders/{id}/cancel` | 🔒 | buyer: `pending_payment`/`confirmed`; seller: `confirmed`; refunds if paid |
+| POST | `/orders/{id}/ship` | 🔒 seller | delivery, `confirmed` → `shipped` + fake waybill (Phase 11) |
+| POST | `/orders/{id}/confirm-received` | 🔒 buyer | `shipped`/`delivered` → `completed` (Phase 11) |
+| POST | `/orders/{id}/handover` | 🔒 seller | `{code}` meetup, `confirmed` → `completed`; 422 `wrong_code`; 409 `code_locked` after 5 wrong tries (Phase 11) |
+| POST | `/orders/{id}/handover-code` | 🔒 buyer | new code, resets tries (Phase 11) |
+| POST | `/orders/{id}/review` | 🔒 participant | `{rating 1–5, comment?}`; completed, within 30 days, once (Phase 11) |
+| POST | `/orders/{id}/dispute` | 🔒 buyer | `{reason, details?}` (Phase 12) |
+| POST | `/orders/{id}/dispute/refund` · `/contest` | 🔒 seller | open dispute (Phase 12) |
+| POST | `/orders/{id}/dispute/withdraw` · `/escalate` | 🔒 buyer (escalate: either side) | (Phase 12) |
+| GET | `/profiles/{username}/reviews` | 🔓 | `{average, count, items}` public reviews only (Phase 11) |
+| GET | `/me/wallet` | 🔒 | `{available_centavos, pending_centavos, entries}` |
+| POST | `/me/wallet/withdrawals` | 🔒 | `{amount_centavos}` ≥ ₱100 and ≤ available; to "Demo bank" |
+
+Webhooks and test-mode tools (public routes have no user; they verify a signature instead):
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/payments/webhooks/mock` | signature | `MockPay-Signature: t=…,v1=…` HMAC-SHA256; 400 `bad_signature`; duplicates 200 |
+| POST | `/shipping/webhooks/mock` | signature | `MockCourier-Signature` (Phase 11) |
+| GET | `/mock-pay/sessions/{ref}` | 🔒 buyer | MockPay page data (demo tools) |
+| POST | `/mock-pay/sessions/{ref}/complete` | 🔒 buyer | `{outcome: success|failure}` → signed webhook (demo tools) |
+| POST | `/mock-courier/orders/{id}/advance` | 🔒 participant | next tracking step → signed webhook (demo tools, Phase 11) |
+| POST | `/demo/orders/{id}/fast-forward` | 🔒 participant | move the current deadline to now (demo tools, Phase 11) |
+
+Demo tool routes exist only when `DEMO_TOOLS_ENABLED=true` (otherwise 404).
+
+### Admin (Phase 12)
+All need a token whose `app_metadata.role` is `admin` (403 `not_admin` otherwise). `/me` adds `is_admin`.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/summary` | counts: open reports, escalated disputes, restricted users, open orders |
+| GET | `/admin/reports` | `?status=open|reviewing|actioned|dismissed`, with target and reporter |
+| POST | `/admin/reports/{id}` | `{status, note?, hide_listing?, restrict_user?}` |
+| POST | `/admin/listings/{id}/moderation` | `{moderation: ok|hidden, note?}` |
+| GET | `/admin/users` | `?q=` username search; restriction state |
+| POST | `/admin/users/{username}/restriction` | `{restricted: bool, note?}` |
+| GET | `/admin/disputes` | `?status=open|escalated|resolved` |
+| POST | `/admin/disputes/{id}/resolve` | `{outcome: refund_buyer|release_seller, note}` |
+| GET | `/admin/actions` | audit log, newest first |
 
 ## 3. Rate limits (initial values, tuned later)
 | Action | Limit | Key |
@@ -210,6 +254,11 @@ Auth user (secret key). The token stays valid until it expires, but `/me` then r
 | Block/unblock | 30 / hour | user |
 | Follow/unfollow | 60 / hour | user |
 | Public search | 120 / minute | IP |
+| Create order | 20 / hour | user |
+| Pay / MockPay complete | 30 / hour | user |
+| Withdraw | 10 / day | user |
+| Dispute actions, reviews | 30 / day | user |
+| Payment and shipping webhooks | 120 / minute | IP |
 
 Built in Phase 6a (`app/core/ratelimit.py`): in-process sliding window, no extra dependency.
 Over the limit → 429 `rate_limited` with `Retry-After` (seconds). Refused requests don't count.

@@ -1,6 +1,6 @@
 # Database Schema
 
-Last updated: 2026-10-13 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`; later phases added migrations up to `20261013000300` (Phase 7: sizes, deal options, follows). Deals and reviews are still design only.
+Last updated: 2026-10-13 · Status: built in Phase 2 — `supabase/migrations/20261010000100..300`; later phases added migrations up to `20261013000300` (Phase 7: sizes, deal options, follows). Phases 10–12 add orders, payments, ledger, shipments, reviews, disputes, and admin (§9; design in `TRANSACTIONS_DESIGN.md`).
 
 All app tables live in schema `app` (not exposed by the Supabase Data API). RLS is enabled on
 every table. IDs are UUIDs (`gen_random_uuid()`) unless noted. Every table has `created_at`;
@@ -22,9 +22,15 @@ editable tables also have `updated_at` (set by a trigger).
 | `blocked_users` | MVP | Who blocked whom |
 | `size_options` | Phase 7 | Fixed size lists (clothing, shoes, kids); reference data |
 | `follows` | Phase 7 | Who follows which seller; private to the follower |
-| `deals` | Later | The "transactions" entity: a completed deal confirmed by **both** sides |
-| `reviews` | Later | One per deal per side |
-| admin role | Later | Not a table: `auth.users.app_metadata.role = 'admin'`, set only by SQL/server |
+| `orders` | Phase 10 | One buyer buying one listing (meetup/delivery × online/cash/COD); replaces the planned `deals` table |
+| `order_secrets` | Phase 10 | Meetup handover code; readable only by the buyer |
+| `payments`, `provider_events` | Phase 10 | Simulated provider sessions; processed webhook IDs (idempotency) |
+| `ledger_entries` | Phase 10 | Append-only double-entry money record; wallet balances are sums |
+| `shipments`, `shipment_events` | Phase 11 | Fake waybill and tracking steps |
+| `reviews` | Phase 11 | One per completed order per side |
+| `disputes` | Phase 12 | One per online order |
+| `admin_actions` | Phase 12 | Audit log of every admin action |
+| admin role | Phase 12 | Not a table: `auth.users.app_metadata.role = 'admin'`, set only by SQL/server |
 
 Not needed: separate `subcategories`, `buyers`/`sellers`, `notifications` (unread is computed),
 `listing_status_history` (can be added if needed).
@@ -118,7 +124,7 @@ erDiagram
 ## 3. Enums (explicit status values)
 | Type | Values |
 |---|---|
-| `listing_status` | `draft`, `active`, `paused`, `sold`, `deleted` |
+| `listing_status` | `draft`, `active`, `paused`, `sold`, `deleted`, `reserved` (Phase 10; only order functions set or clear it) |
 | `moderation_status` | `ok`, `hidden` (set by admin later; hidden listings act like deleted for others) |
 | `listing_condition` | `brand_new`, `like_new`, `lightly_used`, `well_used`, `heavily_used` |
 | `offer_status` | `pending`, `accepted`, `rejected`, `withdrawn`, `expired` |
@@ -219,11 +225,9 @@ erDiagram
 - Trigger `blocks_end_follows` (definer) on `blocked_users` insert: deletes follows both ways.
 - `app.follower_count(profile)` (definer, stable): public count without exposing who follows.
 
-### deals and reviews (later)
-- `deals`: `offer_id unique`, `listing_id`, `buyer_id`, `seller_id`, `status` (`awaiting_confirmation`, `completed`, `cancelled`),
-  `buyer_confirmed_at`, `seller_confirmed_at`. Completed only when both are set.
-- `reviews`: `deal_id`, `reviewer_id`, `reviewee_id`, `rating smallint 1–5`, `comment ≤ 1,000`.
-  Unique `(deal_id, reviewer_id)`; check `reviewer_id <> reviewee_id`; insert allowed only when deal is `completed`.
+### deals and reviews
+Replaced by `orders` and `reviews` (§9). A cash meetup is an order with `payment_method = cash`,
+completed by the handover code, so "both sides confirmed" is no longer needed.
 
 ## 5. Indexes
 | Index | Serves |
@@ -291,3 +295,85 @@ Source: https://supabase.com/docs/guides/database/postgres/row-level-security (c
   realistic PHP prices, Filipino/English titles, and **locally generated placeholder images**
   (simple drawn product silhouettes or solid-color cards). No scraped photos.
 - Seed never runs against a hosted project.
+
+## 9. Transactions (Phases 10–12)
+Design and state machine: `TRANSACTIONS_DESIGN.md`. All tables in `app`, RLS on, **no insert,
+update, or delete grants to users**: every change goes through a `security definer` function
+that checks `auth.uid()`, locks the rows it changes (`for update`), and checks the state.
+
+### Enums
+| Type | Values |
+|---|---|
+| `order_status` | `pending_payment`, `confirmed`, `shipped`, `delivered`, `completed`, `cancelled`, `disputed`, `refunded` |
+| `order_fulfilment` | `meetup`, `delivery` |
+| `order_payment` | `online`, `cash`, `cod` |
+| `payment_status` | `pending`, `succeeded`, `failed` |
+| `shipment_status` | `label_created`, `picked_up`, `in_transit`, `out_for_delivery`, `delivered` |
+| `ledger_account` | `external`, `escrow`, `seller`, `courier`, `platform` |
+| `dispute_reason` | `not_received`, `not_as_described`, `incomplete` |
+| `dispute_status` | `open`, `escalated`, `resolved` |
+
+### orders
+- `listing_id` (on delete set null), `buyer_id`, `seller_id` (profiles, on delete set null),
+  `offer_id null`, snapshots `title`, `cover_path`
+- `fulfilment`, `payment_method`, `courier null` (same five codes as listings)
+- `item_price_centavos`, `shipping_fee_centavos`, `buyer_fee_centavos`, `total_centavos`
+  (check total = sum; all ≥ 0)
+- `status`, `cancel_reason null` (`buyer`, `seller`, `payment_expired`, `not_shipped`, `not_met`)
+- Times: `created_at`, `updated_at`, `paid_at`, `shipped_at`, `delivered_at`, `completed_at`,
+  `cancelled_at`, `refunded_at`; deadlines `payment_due_at`, `ship_by`, `meet_by`, `confirm_by`
+- Checks: delivery ⇔ courier set; cash ⇒ meetup; COD ⇒ delivery; buyer ≠ seller (on insert)
+- Partial unique index: one open order per listing
+  (`status in ('pending_payment','confirmed','shipped','delivered','disputed')`)
+- Indexes: `(buyer_id, created_at desc)`, `(seller_id, created_at desc)`, `(status)`
+
+### order_secrets
+`order_id PK`, `handover_code text` (6 digits), `attempts smallint`, `created_at`.
+RLS: select only when the caller is the order's buyer.
+
+### payments and provider_events
+- `payments`: `order_id`, `provider` (`mock`), `provider_ref unique`, `amount_centavos`, `status`,
+  `created_at`, `updated_at`. Partial unique: one `succeeded` payment per order.
+- `provider_events`: PK `(provider, event_id)`, `kind`, `received_at`. Insert-once = idempotency.
+
+### ledger_entries
+`id bigint identity`, `txn_id uuid`, `order_id null`, `account`, `user_id null`,
+`amount_centavos bigint <> 0`, `memo`, `created_at`. Checks: `seller`/`external` need `user_id`;
+`escrow`/`courier`/`platform` have none. Deferred constraint trigger: each `txn_id` sums to 0.
+Update/delete refused by trigger. Wallet = `sum(amount) where account='seller' and user_id=me`.
+
+### shipments and shipment_events (Phase 11)
+`shipments`: `order_id PK`, `courier`, `tracking_number unique`, `status`, `created_at`,
+`updated_at`. `shipment_events`: `id`, `order_id`, `status`, `created_at`. Status only moves forward.
+
+### reviews (Phase 11)
+`order_id`, `reviewer_id` (set null on delete), `reviewee_id` (cascade), `rating 1–5`,
+`comment ≤ 1,000`, `created_at`. Unique `(order_id, reviewer_id)`. Public when both sides reviewed
+or 14 days after completion (`app.review_is_public`).
+
+### disputes (Phase 12)
+`id`, `order_id unique`, `reason`, `details ≤ 1,000`, `status`, `respond_by`, `seller_note`,
+`admin_note`, `outcome null` (`refunded`, `released`, `withdrawn`), `created_at`, `resolved_at`.
+
+### admin_actions (Phase 12)
+`id bigint identity`, `admin_id` (set null on delete), `action`, `target_type`, `target_id`,
+`note ≤ 500`, `created_at`. Insert only inside admin functions.
+
+### profiles (Phase 12)
+`restricted_at timestamptz null` (public; set only by admin functions; users cannot change it).
+
+### RLS (reads only; writes are definer functions)
+| Table | SELECT |
+|---|---|
+| orders, payments, shipments, shipment_events, disputes | buyer or seller of the order; admin |
+| order_secrets | buyer of the order |
+| ledger_entries | `user_id = me`; admin |
+| provider_events | nobody (definer functions only) |
+| reviews | reviewer; everyone when public |
+| admin_actions | admin |
+| reports, listings (all statuses) | admin, in addition to the earlier policies |
+
+### Roles
+- `app_integrations` (NOLOGIN, no BYPASSRLS): granted to `api_app` with `SET` only; may only
+  execute `app.payment_succeeded`, `app.payment_failed`, `app.shipment_event`, and
+  `app.demo_fast_forward`. Used by webhook handlers and demo tools (TRANSACTIONS_DESIGN §5, §11).

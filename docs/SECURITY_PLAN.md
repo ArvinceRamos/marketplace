@@ -32,7 +32,17 @@ Last updated: 2026-10-13 · Status: Phase 8 — release checks done (not deploye
 | T18 | Scams between users | Safety page, chat banner, "payments happen outside the app", report + block, no fake "verified" labels | Manual review of copy |
 | T19 | Dependency vulnerabilities | Lockfiles (`uv.lock`, `package-lock.json`); Dependabot alerts (free); pin patched Next.js (security release due 2026-10-14) | CI installs from lockfiles |
 | T21 | Follow graph leaks (who follows whom) or follow spam | RLS: only your own follows are readable; public count via a definer function; follow rate limit 60/hour, max 1,000; no follows across a block; blocking ends follows both ways | Others/guests can't read follows; insert as someone else → 42501; block removes both directions |
-| T22 | Payment scams via in-app "payment" features | No payments, escrow, or courier booking in the app; payment methods and couriers are labels only; safety copy next to them ("never share a one-time PIN") | Manual review of copy |
+| T22 | Payment scams via in-app "payment" features | Real payments never happen in the app; listing payment methods and couriers are labels; MockPay is labelled test mode and never asks for card or bank details; safety copy ("never share a one-time PIN") | Manual review of copy |
+| T23 | Amount tampering (pay ₱1 for a ₱10,000 item) | Bodies carry no amounts (422 on unknown fields); the database computes item, shipping, fee, total from the listing or the buyer's own accepted offer; the payment amount comes from the order; the webhook amount must match | Body with `total_centavos` → 422; webhook with another amount → payment failed, order unpaid |
+| T24 | Forged payment or courier webhook | HMAC-SHA256 over `timestamp.body`, constant-time compare, 5-minute tolerance, separate secret per provider; the handler runs as `app_integrations`, which can only execute the integration functions | Missing/wrong/old signature → 400, nothing changes |
+| T25 | Replayed or duplicate webhook | `provider_events` primary key; second delivery is a 200 no-op | Same event twice → one ledger capture |
+| T26 | Double sale (two buyers at once) | Listing row lock in `order_create`; `reserved` status; partial unique index (one open order per listing) | Second order on a reserved listing → 409 |
+| T27 | Double release or refund; money from nothing | Each order function locks the order row and checks its state; ledger transactions must sum to 0 (deferred trigger); ledger is append-only (no grants, trigger refuses update/delete); withdrawals lock per user and cannot exceed the balance | Completing twice → 409; withdraw more than balance → 409; direct insert/update on ledger → 42501 |
+| T28 | Handover code leak or guessing | Code in `order_secrets`, readable only by the buyer; 6 random digits from `gen_random_bytes`; 5 wrong tries lock it | Seller can't read the code; 6th try → 409 `code_locked` |
+| T29 | Test-mode tools reachable in production | Routes mounted only when `DEMO_TOOLS_ENABLED=true`; fast-forward only for participants and only through `app_integrations` | Flag off → 404 |
+| T30 | Admin privilege abuse or escalation | Admin only from signed `app_metadata.role`; every admin route checks it and every admin function checks `app.is_admin()` again; each action writes `admin_actions` in the same transaction | Non-admin → 403 on every `/admin` route and 42501 on every admin function; `user_metadata.role = admin` → still 403 |
+| T31 | Restricted users keep abusing | Insert policies on listings, conversations, messages, offers check `not app.is_restricted(me)`; `order_create` checks too | Restricted user: create listing/chat/message/offer/order → 403 |
+| T32 | Money history lost on account deletion | Deletion refused with open orders or a balance; finished orders and ledger rows keep `null` for the deleted user | Delete with an open order → 409 `open_orders` |
 | T20 | Error leaks | Central handler returns generic 500; details only in logs with request ID; OpenAPI docs off in production | Forced error → no stack trace in response |
 
 ## 3. Keys and secrets
@@ -41,6 +51,7 @@ Last updated: 2026-10-13 · Status: Phase 8 — release checks done (not deploye
 | Publishable key (`sb_publishable_…`) | Frontend env, browser | Public by design. Only reaches Auth and public Storage reads |
 | Secret key (`sb_secret_…`) | Backend env only | **Only use:** delete an Auth user during account deletion (`app/services/auth_admin.py`, the only file that reads it; stored as `SecretStr`). Never in frontend, CI, or logs. Missing → `DELETE /me` is 503 and nothing is removed |
 | `DATABASE_URL` for `api_app` | Backend env only | Role without BYPASSRLS |
+| `MOCKPAY_WEBHOOK_SECRET`, `MOCKCOURIER_WEBHOOK_SECRET` | Backend env only | Sign and verify simulated webhooks. Local/test use fixed dev defaults; production refuses to start with a default secret |
 | Local CLI keys | Local `.env`, CI | Printed by `supabase start`; only valid for the local stack |
 
 ## 3b. Phase 2 notes (implemented and tested)

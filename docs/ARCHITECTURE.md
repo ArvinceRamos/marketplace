@@ -119,6 +119,16 @@ have BYPASSRLS). One missing `WHERE owner_id = ...` would leak data.
   RLS stays on anyway.
 - The secret (service-role) key is used in exactly one place: deleting the Auth user during
   account deletion (Auth admin API). Documented in `SECURITY_PLAN.md`.
+- **Webhooks (Phase 10+)** carry no user. After verifying the signature, the handler runs
+  `SET LOCAL ROLE app_integrations`: a NOLOGIN role without BYPASSRLS that may only execute the
+  integration functions (`payment_succeeded`, `payment_failed`, `shipment_event`,
+  `demo_fast_forward`). Those `security definer` functions do the work. No secret key involved.
+- **Money rules live in the database.** Order, payment, ledger, dispute, and admin changes are
+  `security definer` functions that check `auth.uid()` / `app.is_admin()`, lock rows, and check
+  state; users have read-only grants on those tables. FastAPI checks first for clear errors
+  (TRANSACTIONS_DESIGN §1, D6).
+- **Payment provider interface** (`app/integrations/`): create a session, verify a signature,
+  parse an event. MockPay is the only implementation; a real PH provider would be a second one.
 
 **Verified in Phase 2 (local):** `api_app` is created with `NOINHERIT` and role grants
 `WITH INHERIT FALSE, SET TRUE`, so it has no table access until it runs `SET LOCAL ROLE`. A test
