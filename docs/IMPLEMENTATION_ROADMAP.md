@@ -5,15 +5,15 @@ Last updated: 2026-10-13
 ## Current state
 - Phase 0: done (approved 2026-10-10).
 - **Phase 1: done (2026-10-10).** Frontend, backend, Docker, local Supabase, CI config, README. CI has not run on GitHub yet (no repo).
-- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8, de2b157, 66dc74a).
+- Repo: `C:\Users\arvince\Documents\ChatGPT\marketplace` (commits f919f9e, 9af2e03, 8ddb0e1, 1a184f8, de2b157, 66dc74a, fa62b0a).
 - **Phase 2: done (2026-10-10).** Schema, RLS, storage policies, JWT verification, sign-up/login/logout, profile view/edit.
 - **Design system: done (2026-10-13).** See `docs/DESIGN_SYSTEM.md`.
 - **Phase 3: done (2026-10-13).** Demo data, browse API, homepage, search + filters, category, listing, seller pages.
 - **Phase 4: done (2026-10-13).** Create/edit/status/delete, photo pipeline, `/sell`, `/my-listings`, edit page.
 - **Phase 5: done (2026-10-13).** Favorites, chat with polling, unread badge, offers, inbox, Account menu.
 - **Phase 6a: done (2026-10-13), committed 66dc74a.** Reports, blocks, account deletion, rate limits, `/settings`.
-- **Phase 6b: done (2026-10-13), not committed yet.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
-- **Exact next step:** commit 6b, then Phase 7 (release readiness) when you say yes.
+- **Phase 6b: done (2026-10-13), committed fa62b0a.** Safety/privacy/terms pages, footer, a11y + Lighthouse, retry states, headers/CSP, security review.
+- **Exact next step:** Phase 7 (release readiness) when you say yes.
 
 ## Machine check (2026-10-10)
 | Tool | Status |
