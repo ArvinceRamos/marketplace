@@ -22,7 +22,8 @@ Last updated: 2026-10-14
 - **Phase 13: done (2026-10-13).** Release checks, demo orders in every state, README test-mode guide, limitations, security review.
 - **Phase 14: done (2026-10-14).** Audit fixes (`docs/AUDIT_2026-10-13.md`): demo tools can't release escrow, paid meetups seller-cancel only + seller report, unpaid-order cap, reserved/restricted listings frozen, 14-day dispute fallback, image memory limits, rate limits, viewer endpoint, cached reference lists.
 - **Phase 15: done (2026-10-14).** Listing, seller, and profile pages redesigned from Claude Design; avatar upload; city picker; seller sold count.
-- **Not committed yet** (Phases 14 and 15 are in the working tree). The Claude Design export (`docs/design/claude-design*`) is git-ignored; the bundle `.md` is tracked.
+- **Phase 16: done (2026-10-15).** Performance quick wins: GZip on the API, leaner search count, Next.js cache for public data, foreign-key indexes.
+- Phases 14–15 are committed (23cdaa6); Phase 16 is committed after it. The Claude Design export (`docs/design/claude-design*`) is git-ignored; the bundle `.md` is tracked.
 - **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release (not out on 2026-10-14; still 16.4.0), GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
@@ -195,6 +196,15 @@ Source: Claude Design export (git-ignored) from `docs/design/CLAUDE_DESIGN_BUNDL
 - [x] Design system: `text-star` token (replaces a hard-coded hex in `Stars`); new shared parts listed in DESIGN_SYSTEM
 - Checks passed: Ruff; pytest 253/253 (avatar upload/replace/remove/reject with real Storage, city set/clear, sold count, avatar unit test); ESLint; typecheck; Vitest 112/112 (listing actions per viewer, gallery empty state, stats, share); `next build`; browser at 1280 px and 375 px: listing (guest, owner bar, rows hidden for owner), seller page with reviews (visitor), own profile and edit (city saved and shown publicly), no sideways scroll on any of them
 - Not checked by hand: picking a photo file in the browser (covered by API tests); screen reader pass on the new gallery and tabs
+
+### Phase 16 — Performance quick wins (done 2026-10-15)
+From a read-only audit (items 1–3 and 13 of its ranked list). Not done, left for their own phase because they touch auth and data integrity: per-request `set local role`/`set_config` in `core/db.py`, and "tick" writes inside read endpoints (orders, offers, wallet, admin).
+- [x] API: `GZipMiddleware` (≥ 1000 bytes). `/locations` 5,371 → 1,221 bytes on the wire (local run)
+- [x] Search: the page query runs first; a short last page gives the total without a count query. Full or past-the-end pages still count, now joining profiles/locations only when a filter uses them. Totals are unchanged
+- [x] Frontend: `lib/catalog.ts` reads go through `'use cache'` — categories/locations 1 h, listings/profiles/search 60 s (tags `reference`, `public`). `connection()` runs first so `next build` never calls the API
+- [x] Migration `20261015000100_fk_indexes.sql`: partial indexes on `messages.sender_id`, `offers.buyer_id/seller_id`, `reports.listing_id/reported_user_id`, `profiles.city_id`, `reviews.reviewer_id`, `admin_actions.admin_id`
+- Checks passed: Ruff; pytest 253/253 before the new tests, then the browse file 21/21 with 2 new tests (city count, gzip header) and a longer pagination test (short/full/past-end pages); full suite not rerun after adding them; ESLint; typecheck; Vitest 112/112; `next build` with no API running; migration applied to the local stack only; local run of the built app: 3 home-page loads made 2 API calls (first load only) and page time went 0.73 s → ~0.05 s
+- Limits: the Next cache is in memory, so on serverless hosting (Vercel) each instance has its own and hits are less frequent than in this single-process run. A sold or edited listing can show for up to 60 s on public pages (checkout and order pages are not cached). Timings are local, one machine, not a benchmark. Index effect not measured with `EXPLAIN` (tables are small).
 
 ### Later
 - Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).

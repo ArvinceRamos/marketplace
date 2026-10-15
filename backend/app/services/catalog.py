@@ -199,17 +199,27 @@ async def search_listings(db: AsyncConnection, f: SearchFilters, urls: Urls) -> 
     # Relevance needs a query; without one, fall back to newest.
     sort = f.sort if (f.sort != SortOrder.relevance or f.q) else SortOrder.newest
     where_sql = " and ".join(where)
-    count_sql = f"select count(*) {CARD_FROM} where {where_sql}"  # noqa: S608
-    total = (await db.execute(text(count_sql), params)).scalar_one()
+    offset = (f.page - 1) * f.page_size
     page_sql = (
         f"select {CARD_COLUMNS} {CARD_FROM} where {where_sql} "  # noqa: S608
         f"order by {_ORDER_BY[sort]} limit :limit offset :offset"
     )
-    rows = await db.execute(
-        text(page_sql), {**params, "limit": f.page_size, "offset": (f.page - 1) * f.page_size}
-    )
+    rows = await db.execute(text(page_sql), {**params, "limit": f.page_size, "offset": offset})
+    items = [card_from_row(r, urls) for r in rows.mappings()]
+    if items and len(items) < f.page_size:
+        # A short page is the last one, so the total is known without counting.
+        total = offset + len(items)
+    else:
+        # Join profiles/locations only when a filter uses them (both joins are 1:1).
+        count_from = "from app.listings l"
+        if f.seller_username:
+            count_from += " join app.profiles p on p.id = l.seller_id"
+        if f.city:
+            count_from += " join app.locations loc on loc.id = l.city_id"
+        count_sql = f"select count(*) {count_from} where {where_sql}"  # noqa: S608
+        total = (await db.execute(text(count_sql), params)).scalar_one()
     return ListingPage(
-        items=[card_from_row(r, urls) for r in rows.mappings()],
+        items=items,
         page=f.page,
         page_size=f.page_size,
         total=total,

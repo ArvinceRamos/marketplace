@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import httpx2
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.datastructures import MutableHeaders
 
 from app.api.v1.orders import demo_router
@@ -76,6 +77,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _security_headers(request, response.headers)
         return response
 
+    # Compress JSON (listing pages are large). Added first so it sits innermost.
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     # Before CORS is added, so CORS wraps it and a 413 still carries CORS headers
     # (otherwise the browser would only see a network error).
     app.add_middleware(BodySizeLimit)

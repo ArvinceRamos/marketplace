@@ -122,6 +122,33 @@ async def test_pagination(api, db, users):
     assert (first["total"], len(first["items"]), first["has_next"]) == (3, 2, True)
     assert (len(second["items"]), second["has_next"]) == (1, False)
     assert not {i["id"] for i in first["items"]} & {i["id"] for i in second["items"]}
+    assert second["total"] == 3  # short last page: total comes without a count query
+    # Exactly full page, and a page past the end, still get the true total.
+    full = api.get("/api/v1/listings", params={"q": word, "page_size": 3}).json()
+    assert (full["total"], full["has_next"]) == (3, False)
+    beyond = api.get("/api/v1/listings", params={"q": word, "page_size": 2, "page": 5}).json()
+    assert (beyond["items"], beyond["total"], beyond["has_next"]) == ([], 3, False)
+
+
+@pytest.mark.anyio
+async def test_count_with_city_and_seller_filters(api, db, users):
+    seller, word = users.create("seller"), token()
+    await make(db, seller, word=word, city="manila")
+    await make(db, seller, word=word, city="manila")
+    await make(db, seller, word=word, city="quezon-city")
+    res = api.get("/api/v1/listings", params={"q": word, "city": "manila", "page_size": 1})
+    assert res.json()["total"] == 2
+    username = api.get(f"/api/v1/listings/{res.json()['items'][0]['id']}").json()["seller"][
+        "username"
+    ]
+    res = api.get(f"/api/v1/profiles/{username}/listings", params={"page_size": 1})
+    assert res.json()["total"] >= 3
+
+
+def test_responses_are_gzipped(api):
+    res = api.get("/api/v1/locations", headers={"Accept-Encoding": "gzip"})
+    assert res.status_code == 200
+    assert res.headers.get("content-encoding") == "gzip"
 
 
 def test_query_matches_category_names(api):
