@@ -25,7 +25,7 @@ Last updated: 2026-10-14
 - **Phase 16: done (2026-10-15).** Performance quick wins: GZip on the API, leaner search count, Next.js cache for public data, foreign-key indexes.
 - **Phase 17: done (2026-10-29).** Hosted-site speed: waking screen that reloads by itself, `retry()` fix, one round trip for role + claims, keep-alive guide.
 - Phases 14–15 are committed (23cdaa6); Phase 16 is committed after it. The Claude Design export (`docs/design/claude-design*`) is git-ignored; the bundle `.md` is tracked.
-- **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release (16.4.3 is out as of 2026-10-29; still on 16.4.0, upgrade pending your OK), GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
+- **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -213,7 +213,8 @@ Found on the live site (2026-10-28): the hosted Supabase project was paused (URL
 - [x] `core/db.py`: role switch and JWT claims in one statement (`set_config('role', …, true)`, as PostgREST does), one less round trip per request; role names stay fixed literals
 - [x] Keep-alive: README guide for an external uptime monitor on `/api/v1/health/ready` (already queries the database, so no new endpoint); FREE_TIER_LIMITATIONS and ARCHITECTURE updated
 - Checks passed: Ruff; pytest 258/258 (+3 integration: role/claims set inside the transaction and gone after it on the same pooled session, guest is anon, integration role can't read tables); ESLint; typecheck; Vitest 115/115 (+3: retries once the server answers, gives up and stops checking, no loop after a failed retry); `next build`; browser on the built app: API off → waking screen; API started → listings appeared by themselves with no click
-- Not done here (needs your action or "Deploy now."): create the uptime monitor; set Vercel's function region to `sin1` if it isn't; apply `fk_indexes` to the hosted DB; push to deploy. `npm audit` reports a critical Next.js advisory for 16.0.0–16.4.0, fixed in 16.4.3 (dependency change, not made)
+- Not done here (needs your action or "Deploy now."): create the uptime monitor; set Vercel's function region to `sin1` if it isn't; apply `fk_indexes` to the hosted DB; push to deploy
+- [x] Next.js 16.4.0 → **16.4.3** (and `eslint-config-next`), approved 2026-10-29: `npm audit` showed a critical advisory for 16.0.0–16.4.0 (RCE in image optimization with SVG and in `use cache` returning typed arrays; Server Actions DoS). After: `npm audit --omit=dev` 0; ESLint; typecheck; Vitest 115/115; `next build`; browser on the built app (home, listing, search, seller) with no new console errors. The 4 remaining `npm audit` findings are dev-only tooling, as before
 
 ### Later
 - Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).

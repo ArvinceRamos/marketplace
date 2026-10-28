@@ -229,8 +229,8 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
   (SECURITY_PLAN §3c, §7). The root layout adds a "Skip to content" link and a footer linking
   `/safety`, `/terms`, `/privacy`. Client views that load account data show "Try again" on
   failure (`components/ui/load-error.tsx`) and drop that data when hidden.
-- Next.js 16.4 is current (released 2026-10-06). A security release is announced for 2026-10-14;
-  Phase 1 should pin to that patched version. Source: https://nextjs.org/blog (checked 2026-10-10)
+- Next.js is pinned to **16.4.3** (patched release; upgraded from 16.4.0 on 2026-10-29 after a
+  critical `npm audit` advisory). Run `npm audit --omit=dev` before each deploy.
 
 ## 9. Messaging
 - Messages are rows in Postgres. The open thread polls every ~10 seconds; the inbox polls every
