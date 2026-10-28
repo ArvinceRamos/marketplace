@@ -220,15 +220,17 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
   again; the frontend check is only for user experience.
 - **Rendering (Phase 3):** pages prerender a static shell; API data is fetched at request time
   inside `<Suspense>` with skeletons (no `use cache`), so builds never need the API and a
-  waking Render server shows a skeleton, then `error.tsx` with "Try again" after 20 s.
+  waking Render server shows a skeleton, then `error.tsx` after 20 s. Since Phase 17,
+  `error.tsx` says "Waking up the server…", checks `/api/v1/health/ready` every 5 s for up
+  to 2 minutes, and calls `retry()` (re-fetches the page) once the API answers.
   Unknown IDs/slugs render `not-found.tsx` (soft 404 with `noindex`, because the page is streamed).
 - `next/image` runs with `images.unoptimized: true`; we serve our own WebP thumbnails.
 - **Phase 6b:** every page gets security headers and a static CSP from `next.config.ts`
   (SECURITY_PLAN §3c, §7). The root layout adds a "Skip to content" link and a footer linking
   `/safety`, `/terms`, `/privacy`. Client views that load account data show "Try again" on
   failure (`components/ui/load-error.tsx`) and drop that data when hidden.
-- Next.js 16.4 is current (released 2026-10-06). A security release is announced for 2026-10-14;
-  Phase 1 should pin to that patched version. Source: https://nextjs.org/blog (checked 2026-10-10)
+- Next.js is pinned to **16.4.3** (patched release; upgraded from 16.4.0 on 2026-10-29 after a
+  critical `npm audit` advisory). Run `npm audit --omit=dev` before each deploy.
 
 ## 9. Messaging
 - Messages are rows in Postgres. The open thread polls every ~10 seconds; the inbox polls every

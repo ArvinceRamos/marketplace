@@ -172,6 +172,22 @@ Settings (`backend/.env`): `DEMO_TOOLS_ENABLED` (default on locally, off in prod
 to `true`), `MOCKPAY_WEBHOOK_SECRET`, `MOCKCOURIER_WEBHOOK_SECRET` (dev defaults locally;
 `ENVIRONMENT=production` refuses to start without real random values).
 
+## Keep the hosted demo awake
+The free hosts sleep: Render after 15 minutes without traffic (about a minute to wake), Supabase
+after 7 days without activity (down until restored in the dashboard). For a portfolio link,
+point a free uptime monitor at the API so both stay awake:
+
+1. Create a free account at an uptime monitor (for example UptimeRobot or cron-job.org).
+2. Add an HTTP monitor for `https://<your-render-service>.onrender.com/api/v1/health/ready`
+   every 5 minutes (anything under 15 works). This endpoint runs `select 1`, so it also keeps
+   Supabase active. It answers both `GET` and `HEAD` (UptimeRobot's default); before
+   Phase 17 a `HEAD` got 405, which a monitor reports as down.
+3. Turn on email alerts: you hear about downtime before a recruiter does.
+
+A GitHub Actions schedule is not used: GitHub turns scheduled workflows off after 60 days
+without repo activity, and on a private repo it would use more than the free minutes.
+If the API is asleep anyway, the site shows "Waking up the server…" and loads by itself.
+
 ## Troubleshooting
 | Problem | Fix |
 |---|---|
@@ -187,5 +203,6 @@ to `true`), `MOCKPAY_WEBHOOK_SECRET`, `MOCKCOURIER_WEBHOOK_SECRET` (dev defaults
 | API container exits at start with "Set MOCKPAY_WEBHOOK_SECRET…" | `ENVIRONMENT=production` needs both webhook secrets (random, e.g. `openssl rand -hex 32`) |
 | An order page stays on its loading skeleton | Order and chat pages only poll while the browser tab is visible; switch to the tab |
 | `npm run db:demo` fails removing old demo users | Run `npm run db:reset` first, then `npm run db:demo` |
+| Live site shows "Waking up the server…" for minutes, or API calls return 500 after ~5 s | Open the Supabase dashboard: a paused project must be restored (its URL stops resolving while paused). Then check the uptime monitor |
 | `/me` returns 503 `db_unavailable` | `DATABASE_URL` is missing in `backend/.env`, or Supabase is not running |
 | Pages show "Missing NEXT_PUBLIC_…" | Create `frontend/.env.local` from `.env.example`, then restart `npm run dev` |

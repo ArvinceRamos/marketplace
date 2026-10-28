@@ -23,8 +23,9 @@ Last updated: 2026-10-14
 - **Phase 14: done (2026-10-14).** Audit fixes (`docs/AUDIT_2026-10-13.md`): demo tools can't release escrow, paid meetups seller-cancel only + seller report, unpaid-order cap, reserved/restricted listings frozen, 14-day dispute fallback, image memory limits, rate limits, viewer endpoint, cached reference lists.
 - **Phase 15: done (2026-10-14).** Listing, seller, and profile pages redesigned from Claude Design; avatar upload; city picker; seller sold count.
 - **Phase 16: done (2026-10-15).** Performance quick wins: GZip on the API, leaner search count, Next.js cache for public data, foreign-key indexes.
+- **Phase 17: done (2026-10-29).** Hosted-site speed: waking screen that reloads by itself, `retry()` fix, one round trip for role + claims, keep-alive guide.
 - Phases 14–15 are committed (23cdaa6); Phase 16 is committed after it. The Claude Design export (`docs/design/claude-design*`) is git-ignored; the bundle `.md` is tracked.
-- **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, Next.js security release (not out on 2026-10-14; still 16.4.0), GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
+- **Exact next step:** your call. Check by hand (below), then commit. Before a public launch: KNOWN_LIMITATIONS §1 (privacy contact, GitHub repo + first CI run, someone to watch `/admin`), and check `httpx2` on PyPI (audit A10). Deployment only after you say "Deploy now."
 
 ## Machine check (2026-10-10)
 | Tool | Status |
@@ -205,6 +206,16 @@ From a read-only audit (items 1–3 and 13 of its ranked list). Not done, left f
 - [x] Migration `20261015000100_fk_indexes.sql`: partial indexes on `messages.sender_id`, `offers.buyer_id/seller_id`, `reports.listing_id/reported_user_id`, `profiles.city_id`, `reviews.reviewer_id`, `admin_actions.admin_id`
 - Checks passed: Ruff; pytest 253/253 before the new tests, then the browse file 21/21 with 2 new tests (city count, gzip header) and a longer pagination test (short/full/past-end pages); full suite not rerun after adding them; ESLint; typecheck; Vitest 112/112; `next build` with no API running; migration applied to the local stack only; local run of the built app: 3 home-page loads made 2 API calls (first load only) and page time went 0.73 s → ~0.05 s
 - Limits: the Next cache is in memory, so on serverless hosting (Vercel) each instance has its own and hits are less frequent than in this single-process run. A sold or edited listing can show for up to 60 s on public pages (checkout and order pages are not cached). Timings are local, one machine, not a benchmark. Index effect not measured with `EXPLAIN` (tables are small).
+
+### Phase 17 — Hosted site speed and keep-alive (done 2026-10-29)
+Found on the live site (2026-10-28): the hosted Supabase project was paused (URL did not resolve), so every data call failed after ~5 s; after restore, warm calls take ~0.2 s, but a sleeping Render API takes ~1 min and the frontend gives up at 20 s. Supabase and Render are both in Singapore. The hosted DB's last migration is `audit_fixes`, so Phase 16's `fk_indexes` is not applied there yet.
+- [x] `error.tsx`: "Waking up the server…", checks `/api/v1/health/ready` every 5 s (visible tab only, up to 2 min), then reloads the page once with `retry()`. Falls back to "We couldn't load this page" if the server stays down or the page fails again within 30 s (no retry loop). Fixed: the old button called `reset()`, which in Next 16 re-renders without re-fetching, so "Try again" could not recover
+- [x] `core/db.py`: role switch and JWT claims in one statement (`set_config('role', …, true)`, as PostgREST does), one less round trip per request; role names stay fixed literals
+- [x] Keep-alive: README guide for an external uptime monitor on `/api/v1/health/ready` (already queries the database, so no new endpoint); FREE_TIER_LIMITATIONS and ARCHITECTURE updated
+- [x] `/health` and `/health/ready` answer `HEAD` as well as `GET`: the new UptimeRobot monitor showed the API as down because its default `HEAD` check got 405 (found 2026-10-29 with curl on the live API). Unit + integration test; the unit test failed (405) on the old code
+- Checks passed: Ruff; pytest 258/258 (+3 integration: role/claims set inside the transaction and gone after it on the same pooled session, guest is anon, integration role can't read tables); ESLint; typecheck; Vitest 115/115 (+3: retries once the server answers, gives up and stops checking, no loop after a failed retry); `next build`; browser on the built app: API off → waking screen; API started → listings appeared by themselves with no click
+- Not done here (needs your action or "Deploy now."): create the uptime monitor; set Vercel's function region to `sin1` if it isn't; apply `fk_indexes` to the hosted DB; push to deploy
+- [x] Next.js 16.4.0 → **16.4.3** (and `eslint-config-next`), approved 2026-10-29: `npm audit` showed a critical advisory for 16.0.0–16.4.0 (RCE in image optimization with SVG and in `use cache` returning typed arrays; Server Actions DoS). After: `npm audit --omit=dev` 0; ESLint; typecheck; Vitest 115/115; `next build`; browser on the built app (home, listing, search, seller) with no new console errors. The 4 remaining `npm audit` findings are dev-only tooling, as before
 
 ### Later
 - Realtime chat; saved searches; notifications; returns/partial refunds; real PH payment provider (needs business registration).
