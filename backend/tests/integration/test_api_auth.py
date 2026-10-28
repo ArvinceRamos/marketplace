@@ -28,6 +28,12 @@ def test_ready_reaches_database(api):
     assert api.get("/api/v1/health/ready").json() == {"status": "ok"}
 
 
+def test_ready_answers_head_for_uptime_monitors(api):
+    res = api.head("/api/v1/health/ready")
+    assert res.status_code == 200
+    assert res.content == b""
+
+
 def test_me_returns_own_profile(api, users):
     alice = users.create("alice")
     res = api.get("/api/v1/me", headers=auth(alice))

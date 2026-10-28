@@ -38,8 +38,8 @@ Auth: `Authorization: Bearer <Supabase access token>`. 🔓 = public, 🔒 = tok
 ### Health and identity
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/health` | 🔓 | `{status:"ok"}`; does not touch DB (used by Docker/Render health checks) |
-| GET | `/health/ready` | 🔓 | checks DB; returns 503 if down |
+| GET, HEAD | `/health` | 🔓 | `{status:"ok"}`; does not touch DB (used by Docker/Render health checks) |
+| GET, HEAD | `/health/ready` | 🔓 | checks DB; returns 503 if down; uptime-monitor keep-alive target |
 | GET | `/me` | 🔒 | own profile + email (only place email is returned); `avatar_url` (Phase 15) |
 | PATCH | `/me` | 🔒 | `display_name, username, bio, city_id` (`city_id: null` clears it); 409 if username taken |
 | PUT | `/me/avatar` | 🔒 | multipart `file` (JPEG/PNG/WebP ≤ 8 MB): checked, centre-cropped to 400 px square WebP, no metadata, stored in the user's own `avatars/` folder; the old file is removed after commit. 422 `unsupported_image`/`invalid_image`; counts toward the photo upload limit (Phase 15) |

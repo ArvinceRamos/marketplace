@@ -180,7 +180,8 @@ point a free uptime monitor at the API so both stay awake:
 1. Create a free account at an uptime monitor (for example UptimeRobot or cron-job.org).
 2. Add an HTTP monitor for `https://<your-render-service>.onrender.com/api/v1/health/ready`
    every 5 minutes (anything under 15 works). This endpoint runs `select 1`, so it also keeps
-   Supabase active.
+   Supabase active. It answers both `GET` and `HEAD` (UptimeRobot's default); before
+   Phase 17 a `HEAD` got 405, which a monitor reports as down.
 3. Turn on email alerts: you hear about downtime before a recruiter does.
 
 A GitHub Actions schedule is not used: GitHub turns scheduled workflows off after 60 days
