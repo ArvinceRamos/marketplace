@@ -220,7 +220,9 @@ https://supabase.com/docs/guides/storage/serving/image-transformations (checked 
   again; the frontend check is only for user experience.
 - **Rendering (Phase 3):** pages prerender a static shell; API data is fetched at request time
   inside `<Suspense>` with skeletons (no `use cache`), so builds never need the API and a
-  waking Render server shows a skeleton, then `error.tsx` with "Try again" after 20 s.
+  waking Render server shows a skeleton, then `error.tsx` after 20 s. Since Phase 17,
+  `error.tsx` says "Waking up the server…", checks `/api/v1/health/ready` every 5 s for up
+  to 2 minutes, and calls `retry()` (re-fetches the page) once the API answers.
   Unknown IDs/slugs render `not-found.tsx` (soft 404 with `noindex`, because the page is streamed).
 - `next/image` runs with `images.unoptimized: true`; we serve our own WebP thumbnails.
 - **Phase 6b:** every page gets security headers and a static CSP from `next.config.ts`

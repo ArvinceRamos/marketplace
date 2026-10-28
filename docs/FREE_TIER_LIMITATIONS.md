@@ -26,9 +26,9 @@ Providers change limits often. Re-check right before deployment. Nothing here is
 | Vercel 5K image transforms | `next/image` optimization would burn through it | Use our own thumbnails; mark Supabase images `unoptimized` |
 | Render 5 GB bandwidth/month | API answers are JSON (measured 2026-10-13: a 24-item search page ≈ 13 KB, a listing ≈ 1.5 KB, uncompressed), so very roughly 300,000+ API calls a month; photos come from Supabase, not Render | Keep images off the API; watch the Render usage page; if close, add caching for public lists before anything else |
 | Render may suspend high outbound traffic | Every API request talks to Supabase (database, Storage on uploads) | Normal small-group use should be fine; this is the main reason not to promote the site widely on the free plan |
-| Render sleeps after 15 min | First visitor waits ~1 minute; SSR pages may time out | Loading/"waking up" state with retry; short SSR timeouts with client fallback |
+| Render sleeps after 15 min | First visitor waits ~1 minute; SSR pages may time out | External uptime monitor pings `/api/v1/health/ready` every 5–10 min (README "Keep the hosted demo awake"); an always-on service uses ~744 of the 750 free hours, so it must be the only service in the workspace. Error page auto-retries once the API answers |
 | Render single instance, restarts | In-memory rate limits reset on restart | Accept for MVP; critical limits also checked in SQL (e.g. new chats per hour) |
-| Supabase pauses after 7 idle days | Hosted dev project goes to sleep | Develop against the **local** stack; unpause hosted project from dashboard when needed |
+| Supabase pauses after 7 idle days | Hosted project goes to sleep; the whole site (data and photos) is down until restored (happened 2026-10-28) | The same monitor ping runs a database query, which counts as activity. Restore from the dashboard if it pauses anyway |
 | 2 active Supabase projects | RvFit likely uses one already | Marketplace uses the second slot. No separate staging project |
 | No Supabase backups on Free | Data loss risk | Manual `supabase db dump` before risky migrations; document in runbook |
 | 2 auth emails per hour | Email sign-up confirmation and password reset will fail beyond 2/hour | **Decision needed** (see §4) |

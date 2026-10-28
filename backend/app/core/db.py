@@ -3,7 +3,7 @@
 FastAPI connects as `api_app`, which has no table privileges of its own. Every
 request runs in one transaction that first switches to `anon` or `authenticated`
 and stores the verified JWT claims, so RLS policies (via auth.uid()) apply exactly
-as they would for that user. `SET LOCAL` ends with the transaction, so pooled
+as they would for that user. Local settings end with the transaction, so pooled
 connections never carry one user's identity into another request.
 """
 
@@ -19,14 +19,23 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_en
 from app.core.errors import AppError
 from app.core.security import Claims, optional_claims, require_claims
 
-# Fixed literals only; never built from input.
-_SET_ROLE = {
-    "anon": text("set local role anon"),
-    "authenticated": text("set local role authenticated"),
+
+# Switch role and store claims in one round trip. set_config('role', x, true) is
+# SET LOCAL ROLE x (same membership check), as PostgREST does it.
+# Role names are fixed literals only; never built from input.
+def _setup(role: str):
+    return text(
+        f"select set_config('role', '{role}', true), "
+        "set_config('request.jwt.claims', :claims, true)"
+    )
+
+
+_SETUP = {
+    "anon": _setup("anon"),
+    "authenticated": _setup("authenticated"),
     # Webhooks and demo tools: may only execute the integration functions.
-    "app_integrations": text("set local role app_integrations"),
+    "app_integrations": _setup("app_integrations"),
 }
-_SET_CLAIMS = text("select set_config('request.jwt.claims', :claims, true)")
 
 
 def create_engine(database_url: str) -> AsyncEngine:
@@ -48,8 +57,7 @@ async def user_transaction(
         raise AppError(503, "db_unavailable", "The service is starting up. Try again shortly.")
     role = "authenticated" if claims else "anon"
     async with engine.begin() as conn:  # commits on success, rolls back on error
-        await conn.execute(_SET_ROLE[role])
-        await conn.execute(_SET_CLAIMS, {"claims": json.dumps(claims or {"role": "anon"})})
+        await conn.execute(_SETUP[role], {"claims": json.dumps(claims or {"role": "anon"})})
         yield conn
 
 
@@ -62,8 +70,7 @@ async def integration_transaction(
     if engine is None:
         raise AppError(503, "db_unavailable", "The service is starting up. Try again shortly.")
     async with engine.begin() as conn:
-        await conn.execute(_SET_ROLE["app_integrations"])
-        await conn.execute(_SET_CLAIMS, {"claims": json.dumps(claims or {})})
+        await conn.execute(_SETUP["app_integrations"], {"claims": json.dumps(claims or {})})
         yield conn
 
 
